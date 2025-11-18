@@ -46,7 +46,7 @@ USER nextjs
 
 EXPOSE 3008
 
-ENV PORT=3000
+ENV PORT=3008
 ENV HOSTNAME="0.0.0.0"
 
 # Démarrer l'application
