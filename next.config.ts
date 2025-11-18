@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   turbopack: {},
   // Exclude examples from page discovery
   pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
+  // Enable standalone output for Docker
+  output: 'standalone',
 };
 
 export default nextConfig;
