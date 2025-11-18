@@ -27,10 +27,13 @@ dist
 Thumbs.db
 
 # Examples (not needed in production build)
-examples
+examples/
+examples/**
 *.example
 *.example.ts
 *.example.tsx
+app/examples/
+app/examples/**
 
 # Documentation
 *.md

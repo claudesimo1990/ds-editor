@@ -26,9 +26,9 @@ MONGODB_URI=mongodb://localhost:27017
 
 Wählen Sie eine der folgenden Optionen:
 
-- **MySQL**: `lib/db-examples/mysql.ts`
-- **PostgreSQL**: `lib/db-examples/postgresql.ts`
-- **MongoDB**: `lib/db-examples/mongodb.ts`
+- **MySQL**: `examples/db-examples/mysql.ts`
+- **PostgreSQL**: `examples/db-examples/postgresql.ts`
+- **MongoDB**: `examples/db-examples/mongodb.ts`
 
 ### 3. API Route konfigurieren
 

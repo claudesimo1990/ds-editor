@@ -10,7 +10,18 @@ const nextConfig: NextConfig = {
         fs: false,
       };
     }
+    // Ignore examples directory
+    config.watchOptions = {
+      ...config.watchOptions,
+      ignored: ['**/examples/**', '**/examples/**/*'],
+    };
     return config;
+  },
+  // Exclude examples from page discovery
+  pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
+  // Exclude examples from being treated as pages
+  experimental: {
+    // This helps exclude examples from build
   },
 };
 
