@@ -65,7 +65,7 @@ CREATE TABLE memorials (
 ### API Route verwenden
 
 ```typescript
-import { saveMemorial, loadMemorial } from '@/lib/db-examples/mysql';
+import { saveMemorial, loadMemorial } from '../examples/db-examples/mysql';
 ```
 
 ## PostgreSQL Setup
@@ -96,7 +96,7 @@ CREATE TABLE memorials (
 ### API Route verwenden
 
 ```typescript
-import { saveMemorial, loadMemorial } from '@/lib/db-examples/postgresql';
+import { saveMemorial, loadMemorial } from '../examples/db-examples/postgresql';
 ```
 
 ## MongoDB Setup
@@ -114,7 +114,7 @@ MongoDB erstellt die Collection automatisch beim ersten Speichern.
 ### API Route verwenden
 
 ```typescript
-import { saveMemorial, loadMemorial } from '@/lib/db-examples/mongodb';
+import { saveMemorial, loadMemorial } from '../examples/db-examples/mongodb';
 ```
 
 ## Verwendung im Editor

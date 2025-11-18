@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { saveMemorial, loadMemorial, deleteMemorial } from '@/lib/db-examples/mysql';
+import { saveMemorial, loadMemorial, deleteMemorial } from '../../../examples/db-examples/mysql';
 import { Block } from '@/app/components/types';
 
 // GET - Memorial laden
