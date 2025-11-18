@@ -1,0 +1,223 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* TipTap Editor Styles */
+.ProseMirror {
+  outline: none;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: rgb(161 161 170);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.dark .ProseMirror p.is-editor-empty:first-child::before {
+  color: rgb(113 113 122);
+}
+
+/* TipTap Placeholder Extension Styles */
+.ProseMirror-focused .is-empty::before {
+  opacity: 0.5;
+}
+
+/* TipTap Heading Styles - Überschreiben der Prose-Klassen */
+.ProseMirror h1 {
+  font-size: 2.5rem !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+}
+
+.ProseMirror h2 {
+  font-size: 2rem !important;
+  line-height: 1.3 !important;
+  font-weight: 700 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+}
+
+.ProseMirror h3 {
+  font-size: 1.75rem !important;
+  line-height: 1.4 !important;
+  font-weight: 700 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+}
+
+.ProseMirror h4 {
+  font-size: 1.5rem !important;
+  line-height: 1.5 !important;
+  font-weight: 700 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+}
+
+.ProseMirror h5 {
+  font-size: 1.25rem !important;
+  line-height: 1.6 !important;
+  font-weight: 700 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+}
+
+.ProseMirror h6 {
+  font-size: 1.125rem !important;
+  line-height: 1.6 !important;
+  font-weight: 700 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+}
+
+.ProseMirror p {
+  font-size: 1rem !important;
+  line-height: 1.75 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+}
+
+/* Preview Styles - Gleiche Styles wie im Editor */
+.preview-heading h1,
+.preview-content h1 {
+  font-size: 2.5rem !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+  color: inherit !important;
+}
+
+.preview-heading h2,
+.preview-content h2 {
+  font-size: 2rem !important;
+  line-height: 1.3 !important;
+  font-weight: 700 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+  color: inherit !important;
+}
+
+.preview-heading h3,
+.preview-content h3 {
+  font-size: 1.75rem !important;
+  line-height: 1.4 !important;
+  font-weight: 700 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+  color: inherit !important;
+}
+
+.preview-heading h4,
+.preview-content h4 {
+  font-size: 1.5rem !important;
+  line-height: 1.5 !important;
+  font-weight: 700 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+  color: inherit !important;
+}
+
+.preview-heading h5,
+.preview-content h5 {
+  font-size: 1.25rem !important;
+  line-height: 1.6 !important;
+  font-weight: 700 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+  color: inherit !important;
+}
+
+.preview-heading h6,
+.preview-content h6 {
+  font-size: 1.125rem !important;
+  line-height: 1.6 !important;
+  font-weight: 700 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+  color: inherit !important;
+}
+
+.preview-content p {
+  font-size: 1rem !important;
+  line-height: 1.75 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+  color: inherit !important;
+}
+
+.preview-content img {
+  max-width: 100% !important;
+  height: auto !important;
+  border-radius: 0.5rem !important;
+  margin: 1rem 0 !important;
+}
+
+.preview-content video {
+  max-width: 100% !important;
+  height: auto !important;
+  border-radius: 0.5rem !important;
+  margin: 1rem 0 !important;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(244 244 245);
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: rgb(39 39 42);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(161 161 170);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(113 113 122);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgb(63 63 70);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgb(82 82 91);
+}
