@@ -32,5 +32,5 @@ services:
       - "traefik.http.services.editor.loadbalancer.server.port=80"
 
 networks:
-  trarfik-net:
+  traefik-net:
     external: true
