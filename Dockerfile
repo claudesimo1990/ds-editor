@@ -7,10 +7,17 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat
 
 # Copier les fichiers de dépendances
-COPY package*.json ./
+COPY package.json ./
+COPY package-lock.json* ./
 
 # Installer les dépendances
-RUN npm ci
+# Utilise npm ci si package-lock.json existe, sinon npm install
+RUN set -eux; \
+    if [ -f package-lock.json ]; then \
+        npm ci; \
+    else \
+        npm install; \
+    fi
 
 # Copier le code source
 COPY . .
