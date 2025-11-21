@@ -1,41 +1,101 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Dépendances
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
+pnpm-debug.log*
+bun.lockb
+package-lock.json
+.pnp
+.pnp.js
 
-# env files (can opt-in for committing if needed)
-.env*
+# Build
+dist/
+dist-ssr/
+build/
+*.local
+.next/
+out/
 
-# vercel
-.vercel
+# Environnement
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
 
-# typescript
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# IDE et éditeurs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+.jest/
+
+# TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Vite
+.vite/
+vite.config.*.timestamp-*
+
+# Supabase
+.supabase/
+
+# Docker
+.dockerignore
+
+# Fichiers temporaires
+*.tmp
+*.temp
+.cache/
+.temp/
+
+# Fichiers de configuration locaux
+*.local.json
+config.local.*
+
+# Fichiers d'analyse
+app-analyse.txt
+*.analysis
+
+# Fichiers de sauvegarde
+*.bak
+*.backup
+*~
+
+# Fichiers de lock (garder package-lock.json si nécessaire, mais souvent ignoré)
+# package-lock.json
+

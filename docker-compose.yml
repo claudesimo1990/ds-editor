@@ -5,38 +5,31 @@ services:
       dockerfile: Dockerfile
     container_name: editor
     ports:
-      - "3008:3008"
+      - "3008:80"
     environment:
       - NODE_ENV=production
-      - NEXT_TELEMETRY_DISABLED=1
     restart: unless-stopped
     networks:
-      - traefik-net
+      - dokploy-network
     labels:
+      # Labels Traefik pour Dokploy
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik-net"
+      - "traefik.docker.network=dokploy-network"
       
-      # HTTP (Port 80) → Redirect auf HTTPS
-      - "traefik.http.routers.editor-http.entrypoints=frontendsecure"
+      # HTTP (Port 80) → Redirect vers HTTPS
+      - "traefik.http.routers.editor-http.entrypoints=web"
       - "traefik.http.routers.editor-http.rule=Host(`portal.c-simweb.de`)"
-      - "traefik.http.routers.editor-http.middlewares=editor-https"
-
-      - "traefik.http.middlewares.editor-https.redirectscheme.scheme=https"
-      
-      # Redirect editor.de → www.editor.de
-      - "traefik.http.routers.editor-root.entrypoints=frontendsecure"
-      - "traefik.http.routers.editor-root.rule=Host(`portal.c-simweb.de`)"
-      - "traefik.http.routers.editor-root.middlewares=editor-www-redirect"
-      - "traefik.http.routers.editor-root.tls=true"
-
-      - "traefik.http.middlewares.editor-www-redirect.redirectregex.regex=^https?://portal.c-simweb\\.de(.*)"
-      - "traefik.http.middlewares.editor-www-redirect.redirectregex.replacement=https://portal.c-simweb.de$1"
-      - "traefik.http.middlewares.editor-www-redirect.redirectregex.permanent=true"
+      - "traefik.http.routers.editor-http.middlewares=editor-https-redirect"
+      - "traefik.http.middlewares.editor-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.editor-https-redirect.redirectscheme.permanent=true"
       
       # HTTPS Router
-      - "traefik.http.routers.editor.entrypoints=frontendsecure"
+      - "traefik.http.routers.editor.entrypoints=websecure"
       - "traefik.http.routers.editor.rule=Host(`portal.c-simweb.de`)"
       - "traefik.http.routers.editor.tls=true"
+      - "traefik.http.routers.editor.tls.certresolver=letsencrypt"
+      - "traefik.http.services.editor.loadbalancer.server.port=80"
+
 networks:
-  traefik-net:
+  dokploy-network:
     external: true

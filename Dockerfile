@@ -1,53 +1,41 @@
-# Utilisation de l'image officielle Node.js LTS
-FROM node:20-alpine AS base
+# Stage 1: Build de l'application Vite
+FROM node:20-alpine AS builder
 
-# Installer les dépendances uniquement quand nécessaire
-FROM base AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
+
+# Installer les dépendances système nécessaires
+RUN apk add --no-cache libc6-compat
 
 # Copier les fichiers de dépendances
 COPY package.json package-lock.json* ./
+
+# Installer les dépendances
 RUN npm ci
 
-# Reconstruire le code source uniquement quand nécessaire
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# Copier le code source
 COPY . .
-# Remove examples directory before build to avoid compilation errors
+
+# Supprimer les exemples si présents
 RUN rm -rf examples app/examples || true
 
 # Variables d'environnement pour le build
-ENV NEXT_TELEMETRY_DISABLED=1
-
-# Build de l'application
-RUN npm run build
-
-# Image de production, copier uniquement les fichiers nécessaires
-FROM base AS runner
-WORKDIR /app
-
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Créer un utilisateur non-root
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Build de l'application Vite
+RUN npm run build
 
-# Copier les fichiers publics
-COPY --from=builder /app/public ./public
+# Stage 2: Serveur nginx pour servir les fichiers statiques
+FROM nginx:alpine AS runner
 
-# Copier les fichiers de build
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Copier les fichiers buildés depuis le stage builder
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-USER nextjs
+# Copier la configuration nginx personnalisée
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 3008
+# Exposer le port 80
+EXPOSE 80
 
-ENV PORT=3008
-ENV HOSTNAME="0.0.0.0"
-
-# Démarrer l'application
-CMD ["node", "server.js"]
+# Démarrer nginx
+CMD ["nginx", "-g", "daemon off;"]

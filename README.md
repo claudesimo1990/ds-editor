@@ -1,56 +1,73 @@
-# DS-Editor
+# Welcome to your Lovable project
 
-Ein moderner, benutzerfreundlicher WYSIWYG-Editor für Gedenkseiten von **Digitalssolutions**.
+## Project info
 
-## Features
+**URL**: https://lovable.dev/projects/4f114946-9628-4d23-af5f-77ed0204bdc8
 
-- 🎨 **WYSIWYG-Editor** mit TipTap
-- 📝 **Verschiedene Block-Typen**: Überschriften, Texte, Bilder, Videos
-- 🖼️ **Bildgrößen-Anpassung** direkt im Editor
-- 📋 **5 fertige Vorlagen** mit Beispielbildern und -inhalten
-- 🎯 **Drag-and-Drop** aus der Sidebar
-- 📦 **JSON-Export/Import** für Datenbank-Integration
-- 📱 **Responsive Design**
-- 🌙 **Dark Mode** Unterstützung
+## How can I edit this code?
 
-## Getting Started
+There are several ways of editing your application.
 
-### Installation
+**Use Lovable**
 
-```bash
-npm install
-```
+Simply visit the [Lovable Project](https://lovable.dev/projects/4f114946-9628-4d23-af5f-77ed0204bdc8) and start prompting.
 
-### Development Server
+Changes made via Lovable will be committed automatically to this repo.
 
-```bash
+**Use your preferred IDE**
+
+If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+
+The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+
+Follow these steps:
+
+```sh
+# Step 1: Clone the repository using the project's Git URL.
+git clone <YOUR_GIT_URL>
+
+# Step 2: Navigate to the project directory.
+cd <YOUR_PROJECT_NAME>
+
+# Step 3: Install the necessary dependencies.
+npm i
+
+# Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
 
-Öffnen Sie [http://localhost:3000](http://localhost:3000) im Browser.
+**Edit a file directly in GitHub**
 
-## Integration in andere Projekte
+- Navigate to the desired file(s).
+- Click the "Edit" button (pencil icon) at the top right of the file view.
+- Make your changes and commit the changes.
 
-Siehe [INTEGRATION.md](./INTEGRATION.md) für detaillierte Anweisungen zur Integration des DS-Editors in andere Webseiten.
+**Use GitHub Codespaces**
 
-### Schnellstart
+- Navigate to the main page of your repository.
+- Click on the "Code" button (green button) near the top right.
+- Select the "Codespaces" tab.
+- Click on "New codespace" to launch a new Codespace environment.
+- Edit files directly within the Codespace and commit and push your changes once you're done.
 
-```tsx
-import DSEditor from './components/DSEditor';
+## What technologies are used for this project?
 
-export default function MyPage() {
-  return <DSEditor />;
-}
-```
+This project is built with:
 
-## Technologien
+- Vite
+- TypeScript
+- React
+- shadcn-ui
+- Tailwind CSS
 
-- **Next.js 16** - React Framework
-- **TipTap** - WYSIWYG Editor
-- **@dnd-kit** - Drag and Drop
-- **Tailwind CSS** - Styling
-- **TypeScript** - Type Safety
+## How can I deploy this project?
 
-## Lizenz
+Simply open [Lovable](https://lovable.dev/projects/4f114946-9628-4d23-af5f-77ed0204bdc8) and click on Share -> Publish.
 
-© Digitalssolutions - DS-Editor
+## Can I connect a custom domain to my Lovable project?
+
+Yes, you can!
+
+To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+
+Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
