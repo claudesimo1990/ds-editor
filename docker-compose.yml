@@ -14,7 +14,8 @@ services:
     labels:
       # Labels Traefik pour Dokploy
       - "traefik.enable=true"
-      - "traefik.docker.network=dokploy-network"
+      - "traefik.docker.network=trarfik-net"
+      - "traefik.http.services.librairedafrique.loadbalancer.server.port=80"
       
       # HTTP (Port 80) → Redirect vers HTTPS
       - "traefik.http.routers.editor-http.entrypoints=frontendsecure"
@@ -31,5 +32,5 @@ services:
       - "traefik.http.services.editor.loadbalancer.server.port=80"
 
 networks:
-  dokploy-network:
+  trarfik-net:
     external: true
