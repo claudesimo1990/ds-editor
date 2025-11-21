@@ -17,14 +17,14 @@ services:
       - "traefik.docker.network=dokploy-network"
       
       # HTTP (Port 80) → Redirect vers HTTPS
-      - "traefik.http.routers.editor-http.entrypoints=web"
+      - "traefik.http.routers.editor-http.entrypoints=frontendsecure"
       - "traefik.http.routers.editor-http.rule=Host(`portal.c-simweb.de`)"
       - "traefik.http.routers.editor-http.middlewares=editor-https-redirect"
       - "traefik.http.middlewares.editor-https-redirect.redirectscheme.scheme=https"
       - "traefik.http.middlewares.editor-https-redirect.redirectscheme.permanent=true"
       
       # HTTPS Router
-      - "traefik.http.routers.editor.entrypoints=websecure"
+      - "traefik.http.routers.editor.entrypoints=frontendsecure"
       - "traefik.http.routers.editor.rule=Host(`portal.c-simweb.de`)"
       - "traefik.http.routers.editor.tls=true"
       - "traefik.http.routers.editor.tls.certresolver=letsencrypt"
