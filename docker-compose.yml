@@ -10,12 +10,12 @@ services:
       - NODE_ENV=production
     restart: unless-stopped
     networks:
-      - dokploy-network
+      - trarfik-net
     labels:
       # Labels Traefik pour Dokploy
       - "traefik.enable=true"
       - "traefik.docker.network=trarfik-net"
-      - "traefik.http.services.librairedafrique.loadbalancer.server.port=80"
+      - "traefik.http.services.editor.loadbalancer.server.port=80"
       
       # HTTP (Port 80) → Redirect vers HTTPS
       - "traefik.http.routers.editor-http.entrypoints=frontendsecure"
