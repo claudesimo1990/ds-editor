@@ -1032,7 +1032,9 @@ export const ProfessionalMemorialEditor: React.FC<ProfessionalMemorialEditorProp
                   backgroundVideo={data.heroBackgroundPhoto?.endsWith('.mp4') ? data.heroBackgroundPhoto : undefined}
                 />
                 {snapGuides.length > 0 && snapEnabled && draggedElement && (
-                  <SnapGuides guides={snapGuides} containerRef={canvasRef} />
+                  <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10000 }}>
+                    <SnapGuides guides={snapGuides} containerRef={canvasRef} />
+                  </div>
                 )}
                 {showGrid && (
                   <div

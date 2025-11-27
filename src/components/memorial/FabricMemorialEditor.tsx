@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { ImageGallery } from './ImageGallery';
 import { VideoGallery } from './VideoGallery';
 import { SimpleIconGallery } from './SimpleIconGallery';
+import { WysiwygToolbar } from './WysiwygToolbar';
 
 interface FabricMemorialEditorProps {
   data: any;
@@ -63,6 +64,33 @@ export const FabricMemorialEditor: React.FC<FabricMemorialEditorProps> = ({
       backgroundColor: '#ffffff',
       selection: true,
       preserveObjectStacking: true,
+    });
+
+    // Activer le snap pour l'alignement automatique
+    canvas.on('object:moving', (e) => {
+      const obj = e.target;
+      if (!obj) return;
+
+      const snapThreshold = 10;
+      const objects = canvas.getObjects().filter(o => o !== obj);
+
+      objects.forEach((target) => {
+        // Snap horizontal (même ligne Y)
+        if (Math.abs(obj.top! - target.top!) < snapThreshold) {
+          obj.set('top', target.top!);
+        }
+        if (Math.abs((obj.top! + obj.height! * obj.scaleY!) - (target.top! + target.height! * target.scaleY!)) < snapThreshold) {
+          obj.set('top', target.top! + target.height! * target.scaleY! - obj.height! * obj.scaleY!);
+        }
+        
+        // Snap vertical (même colonne X)
+        if (Math.abs(obj.left! - target.left!) < snapThreshold) {
+          obj.set('left', target.left!);
+        }
+        if (Math.abs((obj.left! + obj.width! * obj.scaleX!) - (target.left! + target.width! * target.scaleX!)) < snapThreshold) {
+          obj.set('left', target.left! + target.width! * target.scaleX! - obj.width! * obj.scaleX!);
+        }
+      });
     });
 
     fabricCanvasRef.current = canvas;
@@ -611,13 +639,76 @@ export const FabricMemorialEditor: React.FC<FabricMemorialEditorProps> = ({
 
       {/* Sidebar droite - Propriétés */}
       {selectedObject && (
-        <div className="w-64 bg-white border-l border-gray-200 p-4">
+        <div className="w-64 bg-white border-l border-gray-200 p-4 overflow-y-auto">
           <h3 className="font-semibold mb-4">Propriétés</h3>
           <div className="space-y-4">
-            {/* Les propriétés seront ajoutées ici selon le type d'objet */}
-            <p className="text-sm text-gray-500">
-              {selectedObject.type} sélectionné
-            </p>
+            {selectedObject.type === 'textbox' && (
+              <WysiwygToolbar
+                bold={(selectedObject as Textbox).fontWeight === 'bold' || (selectedObject as Textbox).fontWeight === 700}
+                italic={(selectedObject as Textbox).fontStyle === 'italic'}
+                underline={(selectedObject as Textbox).textDecoration === 'underline'}
+                alignment={(selectedObject as Textbox).textAlign as 'left' | 'center' | 'right' || 'left'}
+                fontSize={(selectedObject as Textbox).fontSize || 16}
+                fontFamily={(selectedObject as Textbox).fontFamily || 'Arial'}
+                color={(selectedObject as Textbox).fill as string || '#000000'}
+                onBold={() => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('fontWeight', textbox.fontWeight === 'bold' || textbox.fontWeight === 700 ? 'normal' : 'bold');
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                onItalic={() => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('fontStyle', textbox.fontStyle === 'italic' ? 'normal' : 'italic');
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                onUnderline={() => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('textDecoration', textbox.textDecoration === 'underline' ? '' : 'underline');
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                onAlignment={(align) => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('textAlign', align);
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                onFontSize={(size) => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('fontSize', size);
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                onFontFamily={(family) => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('fontFamily', family);
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                onColor={(color) => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('fill', color);
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                showAdvanced={true}
+                className="w-full"
+              />
+            )}
+            {selectedObject.type !== 'textbox' && (
+              <p className="text-sm text-gray-500">
+                {selectedObject.type} sélectionné
+              </p>
+            )}
           </div>
         </div>
       )}

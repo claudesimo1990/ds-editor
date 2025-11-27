@@ -975,7 +975,9 @@ export const MemorialPreviewEditor: React.FC<Props> = ({
 
         <div className="relative w-full h-full">
           {snapGuides.length > 0 && snapEnabled && draggingField && (
-            <SnapGuides guides={snapGuides} containerRef={boundaryRef} />
+            <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10000 }}>
+              <SnapGuides guides={snapGuides} containerRef={boundaryRef} />
+            </div>
           )}
           {elements.map((el, idx) => {
             const { key, type, value } = el;

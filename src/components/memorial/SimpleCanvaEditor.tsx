@@ -44,6 +44,8 @@ import {
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { WysiwygToolbar } from './WysiwygToolbar';
+import { calculateSnap, ElementBounds } from '@/hooks/useSnapAlignment';
 
 interface SimpleCanvaEditorProps {
   data: any;
@@ -71,6 +73,8 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
   const [uploadedAudios, setUploadedAudios] = useState<string[]>(data?.audioGallery || []);
   const [canvasObjects, setCanvasObjects] = useState<any[]>([]);
   const [showPreview, setShowPreview] = useState(false);
+  const [snapGuides, setSnapGuides] = useState<Array<{ type: 'horizontal' | 'vertical'; position: number; start: number; end: number }>>([]);
+  const [isDraggingObject, setIsDraggingObject] = useState(false);
 
   // Récupérer l'utilisateur
   useEffect(() => {
@@ -135,6 +139,82 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
       preserveObjectStacking: true,
       centeredScaling: true,
       centeredRotation: true,
+    });
+
+    // Activer le snap pour l'alignement automatique avec guides visuels
+    canvas.on('object:moving', (e) => {
+      const obj = e.target;
+      if (!obj) return;
+
+      setIsDraggingObject(true);
+      const objects = canvas.getObjects().filter(o => o !== obj);
+
+      // Calculer les bounds de l'objet courant
+      const objLeft = obj.left!;
+      const objTop = obj.top!;
+      const objWidth = (obj.width! * (obj.scaleX || 1)) || 0;
+      const objHeight = (obj.height! * (obj.scaleY || 1)) || 0;
+
+      const currentBounds: ElementBounds = {
+        id: (obj as any).name || `obj-${obj.type}-${objLeft}-${objTop}`,
+        x: objLeft,
+        y: objTop,
+        width: objWidth,
+        height: objHeight,
+      };
+
+      // Calculer les bounds de tous les autres objets
+      const otherBounds: ElementBounds[] = objects.map((target, idx) => {
+        const targetLeft = target.left!;
+        const targetTop = target.top!;
+        const targetWidth = (target.width! * (target.scaleX || 1)) || 0;
+        const targetHeight = (target.height! * (target.scaleY || 1)) || 0;
+        
+        return {
+          id: (target as any).name || `target-${target.type}-${idx}`,
+          x: targetLeft,
+          y: targetTop,
+          width: targetWidth,
+          height: targetHeight,
+        };
+      });
+
+      // Calculer le snap avec guides
+      const snapResult = calculateSnap(currentBounds, otherBounds);
+
+      // Afficher les guides
+      if (snapResult && snapResult.guides.length > 0) {
+        setSnapGuides(snapResult.guides);
+        // Appliquer le snap
+        obj.set('left', snapResult.snappedX);
+        obj.set('top', snapResult.snappedY);
+      } else {
+        setSnapGuides([]);
+      }
+    });
+
+    canvas.on('object:moved', () => {
+      // L'objet a fini de bouger
+      setIsDraggingObject(false);
+      setSnapGuides([]);
+      saveCanvasStateRef.current?.();
+    });
+
+    canvas.on('object:modified', () => {
+      setIsDraggingObject(false);
+      setSnapGuides([]);
+      saveCanvasStateRef.current?.();
+    });
+
+    canvas.on('selection:cleared', () => {
+      setIsDraggingObject(false);
+      setSnapGuides([]);
+    });
+
+    canvas.on('mouse:up', () => {
+      // Quand on relâche la souris, arrêter l'affichage des guides
+      setIsDraggingObject(false);
+      setSnapGuides([]);
     });
 
     fabricCanvasRef.current = canvas;
@@ -808,10 +888,10 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                   <span className="truncate">Text</span>
                 </TabsTrigger>
                 <TabsTrigger 
-                  value="images" 
+                  value="uploads" 
                   className="flex-1 text-[10px] px-0.5 truncate data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:font-semibold transition-colors"
                 >
-                  <ImageIcon className="w-3 h-3 mr-0.5 flex-shrink-0" />
+                  <Upload className="w-3 h-3 mr-0.5 flex-shrink-0" />
                   <span className="truncate">Uploads</span>
                 </TabsTrigger>
                 <TabsTrigger 
@@ -871,150 +951,286 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
 
                   </TabsContent>
 
-                  {/* Images tab */}
-                  <TabsContent value="images" className="space-y-2 mt-0">
-                    <h3 className="text-sm font-semibold text-gray-600 uppercase">Uploads</h3>
-                  
-                    {/* Upload button */}
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <label className="block">
-                            <input
-                              type="file"
-                              accept="image/*,video/*,audio/*"
-                              multiple
-                              onChange={handleFileUpload}
-                              disabled={isUploading}
-                              className="hidden"
-                              id="canva-upload"
-                            />
-                            <Button
-                              variant="outline"
-                              className="w-full bg-white hover:bg-gray-50 border-gray-300 text-gray-700 justify-start"
-                              disabled={isUploading}
-                              asChild
-                            >
-                              <span>
-                                {isUploading ? (
-                                  <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                                    Hochladen...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Upload className="w-4 h-4 mr-2" />
-                                    <span className="truncate">Bilder, Videos & Audio hochladen</span>
-                                  </>
-                                )}
-                              </span>
-                            </Button>
-                          </label>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Bilder, Videos & Audio hochladen</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                  {/* Uploads tab with sub-tabs */}
+                  <TabsContent value="uploads" className="space-y-2 mt-0">
+                    <Tabs defaultValue="images" className="w-full">
+                      <TabsList className="w-full grid grid-cols-3 mb-4 bg-gray-100">
+                        <TabsTrigger 
+                          value="images" 
+                          className="text-xs data-[state=active]:bg-white data-[state=active]:text-blue-600"
+                        >
+                          <ImageIcon className="w-3 h-3 mr-1" />
+                          Images
+                        </TabsTrigger>
+                        <TabsTrigger 
+                          value="videos" 
+                          className="text-xs data-[state=active]:bg-white data-[state=active]:text-red-600"
+                        >
+                          <Video className="w-3 h-3 mr-1" />
+                          Vidéos
+                        </TabsTrigger>
+                        <TabsTrigger 
+                          value="audio" 
+                          className="text-xs data-[state=active]:bg-white data-[state=active]:text-purple-600"
+                        >
+                          <Music className="w-3 h-3 mr-1" />
+                          Audio
+                        </TabsTrigger>
+                      </TabsList>
 
-                  {/* Gallery des images uploadées */}
-                  {uploadedPhotos.length > 0 && (
-                    <div className="space-y-2 mt-4">
-                      <h4 className="text-xs font-semibold text-gray-500 uppercase">Images</h4>
-                      <div className="grid grid-cols-2 gap-2">
-                        {uploadedPhotos.map((photo: string | any, index: number) => {
-                          const src = typeof photo === 'string' ? photo : photo.src || photo;
-                          return (
-                            <button
-                              key={`img-${index}`}
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                addImageToCanvas(src);
-                              }}
-                              className="aspect-square rounded-lg overflow-hidden border-2 border-gray-300 hover:border-blue-500 transition-colors cursor-pointer relative group"
-                            >
-                              <img
-                                src={src}
-                                alt={`Image ${index + 1}`}
-                                className="w-full h-full object-cover pointer-events-none"
-                                draggable={false}
-                              />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                                <ImageIcon className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                      {/* Images sub-tab */}
+                      <TabsContent value="images" className="space-y-2 mt-0">
+                        {/* Upload button pour images */}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <label className="block">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  onChange={handleFileUpload}
+                                  disabled={isUploading}
+                                  className="hidden"
+                                  id="canva-upload-images"
+                                />
+                                <Button
+                                  variant="outline"
+                                  className="w-full bg-white hover:bg-gray-50 border-gray-300 text-gray-700 justify-start"
+                                  disabled={isUploading}
+                                  asChild
+                                >
+                                  <span>
+                                    {isUploading ? (
+                                      <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2" />
+                                        Hochladen...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Upload className="w-4 h-4 mr-2" />
+                                        <span className="truncate">Images hochladen</span>
+                                      </>
+                                    )}
+                                  </span>
+                                </Button>
+                              </label>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Images hochladen</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
 
-                  {/* Gallery des vidéos uploadées */}
-                  {uploadedVideos.length > 0 && (
-                    <div className="space-y-2 mt-4">
-                      <h4 className="text-xs font-semibold text-gray-500 uppercase">Videos</h4>
-                      <div className="grid grid-cols-2 gap-2">
-                        {uploadedVideos.map((video: string | any, index: number) => {
-                          const src = typeof video === 'string' ? video : video.src || video;
-                          return (
-                            <button
-                              key={`vid-${index}`}
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                addVideoToCanvas(src);
-                              }}
-                              className="aspect-square rounded-lg overflow-hidden border-2 border-gray-300 hover:border-blue-500 transition-colors cursor-pointer relative group bg-gray-100"
-                            >
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <Video className="w-8 h-8 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                              </div>
-                              <div className="absolute bottom-1 left-1 right-1">
-                                <p className="text-xs text-white bg-black/50 px-1 py-0.5 rounded truncate">
-                                  Video {index + 1}
-                                </p>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                        {/* Gallery des images uploadées */}
+                        {uploadedPhotos.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-2 mt-4">
+                            {uploadedPhotos.map((photo: string | any, index: number) => {
+                              const src = typeof photo === 'string' ? photo : photo.src || photo;
+                              return (
+                                <button
+                                  key={`img-${index}`}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    addImageToCanvas(src);
+                                  }}
+                                  className="aspect-square rounded-lg overflow-hidden border-2 border-gray-300 hover:border-blue-500 transition-colors cursor-pointer relative group"
+                                >
+                                  <img
+                                    src={src}
+                                    alt={`Image ${index + 1}`}
+                                    className="w-full h-full object-cover pointer-events-none"
+                                    draggable={false}
+                                  />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                    <ImageIcon className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                  <div className="absolute top-1 right-1 bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1">
+                                    <ImageIcon className="w-2.5 h-2.5" />
+                                    <span>Image</span>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-400 text-sm">
+                            <ImageIcon className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                            <p>Aucune image uploadée</p>
+                          </div>
+                        )}
+                      </TabsContent>
 
-                  {/* Gallery des audios uploadés */}
-                  {uploadedAudios.length > 0 && (
-                    <div className="space-y-2 mt-4">
-                      <h4 className="text-xs font-semibold text-gray-500 uppercase">Audio</h4>
-                      <div className="space-y-2">
-                        {uploadedAudios.map((audio: string | any, index: number) => {
-                          const src = typeof audio === 'string' ? audio : audio.src || audio;
-                          return (
-                            <div
-                              key={`aud-${index}`}
-                              className="p-2 bg-white border border-gray-200 rounded-lg hover:border-blue-500 transition-colors flex items-center gap-2"
-                            >
-                              <Music className="w-5 h-5 text-gray-400" />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-gray-700 truncate">
-                                  Audio {index + 1}
-                                </p>
-                                <audio controls className="w-full h-6 mt-1" src={src} />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                      {/* Videos sub-tab */}
+                      <TabsContent value="videos" className="space-y-2 mt-0">
+                        {/* Upload button pour vidéos */}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <label className="block">
+                                <input
+                                  type="file"
+                                  accept="video/*"
+                                  multiple
+                                  onChange={handleFileUpload}
+                                  disabled={isUploading}
+                                  className="hidden"
+                                  id="canva-upload-videos"
+                                />
+                                <Button
+                                  variant="outline"
+                                  className="w-full bg-white hover:bg-gray-50 border-gray-300 text-gray-700 justify-start"
+                                  disabled={isUploading}
+                                  asChild
+                                >
+                                  <span>
+                                    {isUploading ? (
+                                      <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2" />
+                                        Hochladen...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Upload className="w-4 h-4 mr-2" />
+                                        <span className="truncate">Vidéos hochladen</span>
+                                      </>
+                                    )}
+                                  </span>
+                                </Button>
+                              </label>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Vidéos hochladen</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
 
-                  {uploadedPhotos.length === 0 && uploadedVideos.length === 0 && uploadedAudios.length === 0 && (
-                    <div className="text-center py-4 text-gray-500 text-sm">
-                      Keine Dateien hochgeladen
-                    </div>
-                  )}
+                        {/* Gallery des vidéos uploadées */}
+                        {uploadedVideos.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-2 mt-4">
+                            {uploadedVideos.map((video: string | any, index: number) => {
+                              const src = typeof video === 'string' ? video : video.src || video;
+                              return (
+                                <button
+                                  key={`vid-${index}`}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    addVideoToCanvas(src);
+                                  }}
+                                  className="aspect-square rounded-lg overflow-hidden border-2 border-gray-300 hover:border-red-500 transition-colors cursor-pointer relative group bg-gray-100"
+                                >
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <Video className="w-8 h-8 text-gray-400 group-hover:text-red-500 transition-colors" />
+                                  </div>
+                                  <div className="absolute bottom-1 left-1 right-1">
+                                    <p className="text-xs text-white bg-black/50 px-1 py-0.5 rounded truncate">
+                                      Video {index + 1}
+                                    </p>
+                                  </div>
+                                  <div className="absolute top-1 right-1 bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1">
+                                    <Video className="w-2.5 h-2.5" />
+                                    <span>Vidéo</span>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-400 text-sm">
+                            <Video className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                            <p>Aucune vidéo uploadée</p>
+                          </div>
+                        )}
+                      </TabsContent>
+
+                      {/* Audio sub-tab */}
+                      <TabsContent value="audio" className="space-y-2 mt-0">
+                        {/* Upload button pour audio */}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <label className="block">
+                                <input
+                                  type="file"
+                                  accept="audio/*"
+                                  multiple
+                                  onChange={handleFileUpload}
+                                  disabled={isUploading}
+                                  className="hidden"
+                                  id="canva-upload-audio"
+                                />
+                                <Button
+                                  variant="outline"
+                                  className="w-full bg-white hover:bg-gray-50 border-gray-300 text-gray-700 justify-start"
+                                  disabled={isUploading}
+                                  asChild
+                                >
+                                  <span>
+                                    {isUploading ? (
+                                      <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2" />
+                                        Hochladen...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Upload className="w-4 h-4 mr-2" />
+                                        <span className="truncate">Audio hochladen</span>
+                                      </>
+                                    )}
+                                  </span>
+                                </Button>
+                              </label>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Audio hochladen</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
+                        {/* Gallery des audios uploadés */}
+                        {uploadedAudios.length > 0 ? (
+                          <div className="space-y-2 mt-4">
+                            {uploadedAudios.map((audio: string | any, index: number) => {
+                              const src = typeof audio === 'string' ? audio : audio.src || audio;
+                              return (
+                                <div
+                                  key={`audio-${index}`}
+                                  className="flex items-center gap-2 p-3 bg-white border-2 border-gray-300 hover:border-purple-500 rounded-lg transition-colors cursor-pointer group"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    // Pour l'audio, on pourrait ajouter une fonction spécifique
+                                  }}
+                                >
+                                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <Music className="w-5 h-5 text-purple-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium text-gray-700 truncate">
+                                      Audio {index + 1}
+                                    </p>
+                                    <audio controls className="w-full h-6 mt-1" src={src} />
+                                  </div>
+                                  <div className="bg-purple-600 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 flex-shrink-0">
+                                    <Music className="w-2.5 h-2.5" />
+                                    <span>Audio</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-400 text-sm">
+                            <Music className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                            <p>Aucun audio uploadé</p>
+                          </div>
+                        )}
+                      </TabsContent>
+                    </Tabs>
                   </TabsContent>
 
                   {/* Symbols tab */}
@@ -1104,11 +1320,72 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
         {/* Toolbar */}
         {selectedObject && (
           <div className="bg-gray-100 border-b border-gray-300 p-2 flex items-center gap-2">
+            {selectedObject.type === 'textbox' && (
+              <WysiwygToolbar
+                bold={(selectedObject as Textbox).fontWeight === 'bold' || (selectedObject as Textbox).fontWeight === 700}
+                italic={(selectedObject as Textbox).fontStyle === 'italic'}
+                underline={(selectedObject as Textbox).textDecoration === 'underline'}
+                alignment={(selectedObject as Textbox).textAlign as 'left' | 'center' | 'right' || 'left'}
+                fontSize={(selectedObject as Textbox).fontSize || 16}
+                fontFamily={(selectedObject as Textbox).fontFamily || 'Arial'}
+                color={(selectedObject as Textbox).fill as string || '#000000'}
+                onBold={() => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('fontWeight', textbox.fontWeight === 'bold' || textbox.fontWeight === 700 ? 'normal' : 'bold');
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                onItalic={() => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('fontStyle', textbox.fontStyle === 'italic' ? 'normal' : 'italic');
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                onUnderline={() => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('textDecoration', textbox.textDecoration === 'underline' ? '' : 'underline');
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                onAlignment={(align) => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('textAlign', align);
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                onFontSize={(size) => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('fontSize', size);
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                onFontFamily={(family) => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('fontFamily', family);
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                onColor={(color) => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const textbox = selectedObject as Textbox;
+                    textbox.set('fill', color);
+                    fabricCanvasRef.current.renderAll();
+                  }
+                }}
+                showAdvanced={true}
+              />
+            )}
             <Button
               variant="ghost"
               size="sm"
               onClick={deleteSelected}
-              className="text-gray-700 hover:bg-gray-200"
+              className="text-gray-700 hover:bg-gray-200 ml-auto"
             >
               <X className="w-4 h-4" />
             </Button>
@@ -1117,9 +1394,62 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
 
         {/* Canvas */}
         <div className="flex-1 overflow-auto bg-gray-50 flex items-center justify-center p-8 min-h-0 min-w-0">
-          <Card className="shadow-lg border-2 border-gray-200" style={{ maxWidth: '100%', maxHeight: '100%' }}>
-            <div className="bg-white" style={{ width: '1280px', height: '720px' }}>
-              <canvas ref={canvasRef} />
+          <Card className="shadow-lg border-2 border-gray-200 relative" style={{ maxWidth: '100%', maxHeight: '100%' }}>
+            <div className="bg-white relative" style={{ width: '1280px', height: '720px', position: 'relative' }}>
+              <canvas ref={canvasRef} style={{ position: 'relative', zIndex: 1 }} />
+              {snapGuides.length > 0 && isDraggingObject && (
+                <div 
+                  className="absolute pointer-events-none" 
+                  style={{ 
+                    top: 0,
+                    left: 0,
+                    width: '1280px',
+                    height: '720px',
+                    zIndex: 10000,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  {snapGuides.map((guide, index) => {
+                    if (guide.type === 'horizontal') {
+                      return (
+                        <div
+                          key={`guide-h-${index}`}
+                          style={{
+                            position: 'absolute',
+                            left: `${Math.max(0, guide.start)}px`,
+                            top: `${guide.position}px`,
+                            width: `${Math.max(0, guide.end - guide.start)}px`,
+                            height: '1px',
+                            backgroundColor: '#3b82f6',
+                            opacity: 0.8,
+                            zIndex: 10001,
+                            boxShadow: '0 0 2px rgba(59, 130, 246, 0.8)',
+                            transform: 'translateZ(0)',
+                          }}
+                        />
+                      );
+                    } else {
+                      return (
+                        <div
+                          key={`guide-v-${index}`}
+                          style={{
+                            position: 'absolute',
+                            left: `${guide.position}px`,
+                            top: `${Math.max(0, guide.start)}px`,
+                            width: '1px',
+                            height: `${Math.max(0, guide.end - guide.start)}px`,
+                            backgroundColor: '#3b82f6',
+                            opacity: 0.8,
+                            zIndex: 10001,
+                            boxShadow: '0 0 2px rgba(59, 130, 246, 0.8)',
+                            transform: 'translateZ(0)',
+                          }}
+                        />
+                      );
+                    }
+                  })}
+                </div>
+              )}
             </div>
           </Card>
         </div>
