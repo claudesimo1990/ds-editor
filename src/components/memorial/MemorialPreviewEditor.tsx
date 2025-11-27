@@ -22,6 +22,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PhotoGallery } from "./PhotoGallery";
 import { HeroBackgroundSelector } from "./HeroBackgroundSelector";
+import { SnapGuides } from "./SnapGuides";
+import { WysiwygToolbar } from "./WysiwygToolbar";
+import { calculateSnap, ElementBounds } from "@/hooks/useSnapAlignment";
 
 function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -138,6 +141,9 @@ export const MemorialPreviewEditor: React.FC<Props> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [showTextFormatPopup, setShowTextFormatPopup] = useState(false);
   const [toolbarVisible, setToolbarVisible] = useState(false);
+  const [snapGuides, setSnapGuides] = useState<Array<{ type: 'horizontal' | 'vertical'; position: number; start: number; end: number }>>([]);
+  const [draggingField, setDraggingField] = useState<string | null>(null);
+  const [snapEnabled] = useState(true);
 
   const [localStyles, setLocalStyles] = useState<Record<string, Partial<FieldStyle>>>(styles || {});
   useEffect(() => setLocalStyles(styles || {}), [styles]);
@@ -321,11 +327,103 @@ export const MemorialPreviewEditor: React.FC<Props> = ({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const onDragStart = useCallback(() => setIsDragging(true), []);
+  // Calculer les bounds de tous les éléments pour le snap
+  const allElementBounds = useMemo((): ElementBounds[] => {
+    return elements.map((el, idx) => {
+      const key = el.key;
+      let pos = getStyle(key, 'position', { x: 20 + (idx * DEFAULT_POS_STEP) % 200, y: 20 + Math.floor(idx / 5) * DEFAULT_POS_STEP });
+      let width = getStyle(key, 'width', el.type === 'text' ? 280 : 150);
+      let height = getStyle(key, 'height', el.type === 'text' ? undefined : 150);
+      
+      if (typeof width !== 'number') width = 150;
+      if (typeof height !== 'number') height = 50;
+      
+      return {
+        id: key,
+        x: pos.x,
+        y: pos.y,
+        width,
+        height,
+      };
+    });
+  }, [elements, getStyle]);
+
+  const onDragStart = useCallback((fieldKey: string) => {
+    setIsDragging(true);
+    setDraggingField(fieldKey);
+    setSnapGuides([]);
+  }, []);
+
+  const onDrag = useCallback((fieldKey: string, e: any, pos: any) => {
+    if (!snapEnabled || !boundaryRef.current) {
+      setSnapGuides([]);
+      return;
+    }
+    
+    // Calculer les bounds de l'élément en cours de déplacement
+    const element = elements.find(el => el.key === fieldKey);
+    if (!element) return;
+    
+    let width = getStyle(fieldKey, 'width', element.type === 'text' ? 280 : 150);
+    let height = getStyle(fieldKey, 'height', element.type === 'text' ? undefined : 150);
+    if (typeof width !== 'number') width = 150;
+    if (typeof height !== 'number') height = 50;
+    
+    const currentBounds: ElementBounds = {
+      id: fieldKey,
+      x: pos.x,
+      y: pos.y,
+      width,
+      height,
+    };
+    
+    // Calculer le snap pour afficher les guides
+    const snapResult = calculateSnap(
+      currentBounds,
+      allElementBounds.filter(b => b.id !== fieldKey)
+    );
+    
+    if (snapResult && snapResult.guides.length > 0) {
+      setSnapGuides(snapResult.guides);
+    } else {
+      setSnapGuides([]);
+    }
+  }, [snapEnabled, elements, getStyle, allElementBounds]);
 
   const onDragStop = useCallback((fieldKey: string, e: any, pos: any) => {
     setIsDragging(false);
-    const newPos = { x: Math.round(pos.x), y: Math.round(pos.y) };
+    setDraggingField(null);
+    setSnapGuides([]);
+    
+    // Appliquer le snap final
+    const element = elements.find(el => el.key === fieldKey);
+    if (!element) return;
+    
+    let width = getStyle(fieldKey, 'width', element.type === 'text' ? 280 : 150);
+    let height = getStyle(fieldKey, 'height', element.type === 'text' ? undefined : 150);
+    if (typeof width !== 'number') width = 150;
+    if (typeof height !== 'number') height = 50;
+    
+    const currentBounds: ElementBounds = {
+      id: fieldKey,
+      x: pos.x,
+      y: pos.y,
+      width,
+      height,
+    };
+    
+    let finalPos = { x: pos.x, y: pos.y };
+    if (snapEnabled) {
+      const snapResult = calculateSnap(
+        currentBounds,
+        allElementBounds.filter(b => b.id !== fieldKey)
+      );
+      if (snapResult) {
+        finalPos = { x: snapResult.snappedX, y: snapResult.snappedY };
+      }
+    }
+    
+    const newPos = { x: Math.round(finalPos.x), y: Math.round(finalPos.y) };
 
     if (fieldKey.startsWith('symbol-')) {
       const idx = Number(fieldKey.split('-')[1]);
@@ -359,7 +457,7 @@ export const MemorialPreviewEditor: React.FC<Props> = ({
     }
 
     applyStyleChange(fieldKey, 'position', newPos);
-  }, [data, onDataChange, applyStyleChange]);
+  }, [data, onDataChange, applyStyleChange, snapEnabled, elements, getStyle, allElementBounds]);
 
   const startResize = useCallback((fieldKey: string, handle: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -732,29 +830,49 @@ export const MemorialPreviewEditor: React.FC<Props> = ({
     const curItalic = !!getStyle(fieldKey, 'italic', false);
     const curUnderline = !!getStyle(fieldKey, 'underline', false);
     const curAlignment = getStyle(fieldKey, 'alignment', 'left');
+    const curFontSize = getStyle(fieldKey, 'fontSize', 16);
+    const curFontFamily = getStyle(fieldKey, 'fontFamily', 'Arial');
+    const curColor = getStyle(fieldKey, 'color', '#000000');
 
     return (
-      <div data-memorial-toolbar="true" className="relative z-50 flex items-center gap-2 bg-white border border-gray-200 rounded-md p-2 shadow-lg" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} style={{ pointerEvents: 'auto' }}>
-        <button onClick={(e) => { e.stopPropagation(); setShowTextFormatPopup(p => !p); }} onMouseDown={(e) => e.preventDefault()} className={cn('p-1 rounded hover:bg-yellow-100', showTextFormatPopup && 'bg-yellow-200')} title="Textformatierung"><Type className="w-5 h-5 text-yellow-600" /></button>
-
-        <div className="flex gap-1 border-x border-gray-200 px-2">
-          <button onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); applyStyleChange(fieldKey, 'bold', !curBold); }} className={cn('p-1 rounded hover:bg-gray-100', curBold && 'bg-gray-200')}><Bold className="w-4 h-4" /></button>
-          <button onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); applyStyleChange(fieldKey, 'italic', !curItalic); }} className={cn('p-1 rounded hover:bg-gray-100', curItalic && 'bg-gray-200')}><Italic className="w-4 h-4" /></button>
-          <button onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); applyStyleChange(fieldKey, 'underline', !curUnderline); }} className={cn('p-1 rounded hover:bg-gray-100', curUnderline && 'bg-gray-200')}><Underline className="w-4 h-4" /></button>
-        </div>
-
-        <div className="flex gap-1 border-r border-gray-200 pr-2">
-          <button onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); applyStyleChange(fieldKey, 'alignment', 'left'); }} className={cn('p-1 rounded hover:bg-gray-100', curAlignment === 'left' && 'bg-gray-200')}><AlignLeft className="w-4 h-4" /></button>
-          <button onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); applyStyleChange(fieldKey, 'alignment', 'center'); }} className={cn('p-1 rounded hover:bg-gray-100', curAlignment === 'center' && 'bg-gray-200')}><AlignCenter className="w-4 h-4" /></button>
-          <button onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); applyStyleChange(fieldKey, 'alignment', 'right'); }} className={cn('p-1 rounded hover:bg-gray-100', curAlignment === 'right' && 'bg-gray-200')}><AlignRight className="w-4 h-4" /></button>
-        </div>
-
-        <button onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); handleDeleteField(fieldKey); }} className="p-1 rounded hover:bg-red-100"><Trash2 className="w-4 h-4 text-red-500" /></button>
-
-        {showTextFormatPopup && renderTextFormatPopup(fieldKey)}
+      <div 
+        data-memorial-toolbar="true" 
+        className="relative z-50" 
+        onClick={(e) => e.stopPropagation()} 
+        onMouseDown={(e) => e.stopPropagation()} 
+        style={{ pointerEvents: 'auto' }}
+      >
+        <WysiwygToolbar
+          bold={curBold}
+          italic={curItalic}
+          underline={curUnderline}
+          alignment={curAlignment}
+          fontSize={curFontSize}
+          fontFamily={curFontFamily}
+          color={curColor}
+          onBold={() => applyStyleChange(fieldKey, 'bold', !curBold)}
+          onItalic={() => applyStyleChange(fieldKey, 'italic', !curItalic)}
+          onUnderline={() => applyStyleChange(fieldKey, 'underline', !curUnderline)}
+          onAlignment={(align) => applyStyleChange(fieldKey, 'alignment', align)}
+          onFontSize={(size) => applyStyleChange(fieldKey, 'fontSize', size)}
+          onFontFamily={(family) => applyStyleChange(fieldKey, 'fontFamily', family)}
+          onColor={(color) => applyStyleChange(fieldKey, 'color', color)}
+          showAdvanced={true}
+        />
+        <button 
+          onMouseDown={(e) => e.preventDefault()} 
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            handleDeleteField(fieldKey); 
+          }} 
+          className="mt-2 ml-auto p-2 rounded-md hover:bg-red-100 transition-colors border border-red-200"
+          title="Supprimer"
+        >
+          <Trash2 className="w-4 h-4 text-red-500" />
+        </button>
       </div>
     );
-  }, [getStyle, applyStyleChange, showTextFormatPopup, renderTextFormatPopup, handleDeleteField]);
+  }, [getStyle, applyStyleChange, handleDeleteField]);
 
   const renderImageToolbar = useCallback((fieldKey: string) => {
     const curOpacity = getStyle(fieldKey, 'opacity', 100);
@@ -856,6 +974,9 @@ export const MemorialPreviewEditor: React.FC<Props> = ({
         )}
 
         <div className="relative w-full h-full">
+          {snapGuides.length > 0 && snapEnabled && draggingField && (
+            <SnapGuides guides={snapGuides} containerRef={boundaryRef} />
+          )}
           {elements.map((el, idx) => {
             const { key, type, value } = el;
 
@@ -916,7 +1037,8 @@ export const MemorialPreviewEditor: React.FC<Props> = ({
                 position={pos} 
                 defaultPosition={pos} 
                 disabled={!isEditable || isResizing || isEditing} 
-                onStart={onDragStart} 
+                onStart={() => onDragStart(key)} 
+                onDrag={(e, p) => onDrag(key, e, p)}
                 onStop={(e, p) => onDragStop(key, e, p)} 
                 nodeRef={elementRef}
               >

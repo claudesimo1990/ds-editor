@@ -6,6 +6,7 @@ import { twMerge } from 'tailwind-merge';
 import { clsx, type ClassValue } from 'clsx';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Bold, Underline, Italic, AlignLeft, AlignCenter, AlignRight, Trash2 } from 'lucide-react';
+import { WysiwygToolbar } from '@/components/memorial/WysiwygToolbar';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -642,8 +643,6 @@ export const ObituaryPreview: React.FC<ObituaryPreviewProps> = ({
 
   const [editingElement, setEditingElement] = useState<string | null>(null);
 
-  const [showFontOptions, setShowFontOptions] = useState(false);
-
   const boundaryRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -972,131 +971,32 @@ export const ObituaryPreview: React.FC<ObituaryPreviewProps> = ({
                   const curAlignment = getTextFieldValue(editingElement, 'Alignment') ?? 'left';
 
                   return (
-                    <div className="flex items-center bg-white border border-gray-300 rounded-lg shadow-lg p-2 space-x-2">
-                      <div className="relative">
-                        <button
-                          type="button"
-                          className="p-2 rounded-md hover:bg-gray-200 transition-colors"
-                          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                          onClick={() => setShowFontOptions(prev => !prev)}
-                        >
-                          <span className="font-bold text-black">A</span>
-                        </button>
-
-                        {showFontOptions && (
-                        <div
-                          className="absolute top-12 left-0 w-56 p-2 bg-white border border-gray-300 rounded-lg shadow-lg space-y-2 z-[9999]"
-                          onClick={(e) => e.stopPropagation()}
-                          onMouseDown={(e) => e.stopPropagation()}
-                        >
-                          <div className="text-sm font-medium">Font Size</div>
-                          <div className="flex items-center space-x-2 overflow-x-auto p-1 hide-scrollbar">
-                            {[8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72].map(size => (
-                              <button
-                                key={size}
-                                type="button"
-                                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }} 
-                                onClick={() => handleToolbarAction('fontSize', editingElement, size)}
-                                className={`flex-shrink-0 px-3 py-1 rounded-md text-sm border ${
-                                  curFontSize === size ? 'bg-black text-white' : 'bg-gray-100 text-gray-700'
-                                } hover:bg-gray-200`}
-                              >
-                                {size}
-                              </button>
-                            ))}
-                          </div>
-
-                          <div className="text-sm font-medium">Font Family</div>
-                            <div className="flex items-center space-x-2 overflow-x-auto p-1 hide-scrollbar">
-                              {fontFamilies.map(font => (
-                                  <button
-                                      key={font}
-                                      type="button"
-                                      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }} 
-                                      onClick={() => handleToolbarAction('fontFamily', editingElement, font)}
-                                      className={`flex-shrink-0 px-3 py-1 rounded-md text-sm border ${
-                                          curFontFamily === font ? 'bg-black text-white' : 'bg-gray-100 text-gray-700'
-                                      } hover:bg-gray-200`}
-                                      style={{ fontFamily: font }} 
-                                  >
-                                      {font}
-                                  </button>
-                              ))}
-                          </div>
-
-
-                          <div className="text-sm font-medium">Color</div>
-                          <input
-                            type="color"
-                            value={curColor}
-                            onChange={(e) => handleToolbarAction('color', editingElement, e.target.value)}
-                            className="w-full h-8 cursor-pointer"
-                            onClick={(e) => e.stopPropagation()} 
-                            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }} 
-
-                          />
-                        </div>
-                      )}
-
-                      </div>
-
+                    <div className="flex flex-col gap-2">
+                      <WysiwygToolbar
+                        bold={curBold}
+                        italic={curItalic}
+                        underline={curUnderline}
+                        alignment={curAlignment}
+                        fontSize={curFontSize}
+                        fontFamily={curFontFamily}
+                        color={curColor}
+                        onBold={() => handleToolbarAction('bold', editingElement)}
+                        onItalic={() => handleToolbarAction('italic', editingElement)}
+                        onUnderline={() => handleToolbarAction('underline', editingElement)}
+                        onAlignment={(align) => handleToolbarAction('align', editingElement, align)}
+                        onFontSize={(size) => handleToolbarAction('fontSize', editingElement, size)}
+                        onFontFamily={(family) => handleToolbarAction('fontFamily', editingElement, family)}
+                        onColor={(color) => handleToolbarAction('color', editingElement, color)}
+                        showAdvanced={true}
+                        fontSizes={[8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72]}
+                        fontFamilies={fontFamilies}
+                      />
                       <button
                         type="button"
-                        className={cn('p-2 rounded-md hover:bg-gray-200 transition-colors', curBold && 'bg-gray-300')}
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onClick={() => handleToolbarAction('bold', editingElement)}
-                      >
-                        <Bold className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        className={cn('p-2 rounded-md hover:bg-gray-200 transition-colors', curItalic && 'bg-gray-300')}
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onClick={() => handleToolbarAction('italic', editingElement)}
-                      >
-                        <Italic className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        className={cn('p-2 rounded-md hover:bg-gray-200 transition-colors', curUnderline && 'bg-gray-300')}
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onClick={() => handleToolbarAction('underline', editingElement)}
-                      >
-                        <Underline className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        className={cn('p-2 rounded-md hover:bg-gray-200 transition-colors', curAlignment === 'left' && 'bg-gray-300')}
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onClick={() => handleToolbarAction('align', editingElement, 'left')}
-                      >
-                        <AlignLeft className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        className={cn('p-2 rounded-md hover:bg-gray-200 transition-colors', curAlignment === 'center' && 'bg-gray-300')}
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onClick={() => handleToolbarAction('align', editingElement, 'center')}
-                      >
-                        <AlignCenter className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        className={cn('p-2 rounded-md hover:bg-gray-200 transition-colors', curAlignment === 'right' && 'bg-gray-300')}
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onClick={() => handleToolbarAction('align', editingElement, 'right')}
-                      >
-                        <AlignRight className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        className="p-2 rounded-md hover:bg-gray-200"
+                        className="self-end p-2 rounded-md hover:bg-red-100 transition-colors border border-red-200"
                         onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                         onClick={() => handleToolbarAction('remove', editingElement)}
+                        title="Supprimer"
                       >
                         <Trash2 className="w-4 h-4 text-red-500" />
                       </button>

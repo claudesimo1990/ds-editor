@@ -12,6 +12,7 @@ import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Card } from '@/components/ui/card';
+import { WysiwygToolbar } from './WysiwygToolbar';
 
 interface PropertiesPanelProps {
   selectedElement: any | null;
@@ -142,63 +143,25 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 )}
 
                 <div>
-                  <Label className="text-xs font-medium mb-2 block">Style</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant={style.bold ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => onPropertyChange('bold', !style.bold)}
-                      className="flex-1"
-                    >
-                      <Bold className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant={style.italic ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => onPropertyChange('italic', !style.italic)}
-                      className="flex-1"
-                    >
-                      <Italic className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant={style.underline ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => onPropertyChange('underline', !style.underline)}
-                      className="flex-1"
-                    >
-                      <Underline className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-xs font-medium mb-2 block">Alignement</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant={style.alignment === 'left' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => onPropertyChange('alignment', 'left')}
-                      className="flex-1"
-                    >
-                      <AlignLeft className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant={style.alignment === 'center' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => onPropertyChange('alignment', 'center')}
-                      className="flex-1"
-                    >
-                      <AlignCenter className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant={style.alignment === 'right' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => onPropertyChange('alignment', 'right')}
-                      className="flex-1"
-                    >
-                      <AlignRight className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <Label className="text-xs font-medium mb-2 block">Formatage du texte</Label>
+                  <WysiwygToolbar
+                    bold={style.bold || false}
+                    italic={style.italic || false}
+                    underline={style.underline || false}
+                    alignment={style.alignment || 'left'}
+                    fontSize={style.fontSize || 16}
+                    fontFamily={style.fontFamily || 'Arial'}
+                    color={style.color || '#000000'}
+                    onBold={() => onPropertyChange('bold', !style.bold)}
+                    onItalic={() => onPropertyChange('italic', !style.italic)}
+                    onUnderline={() => onPropertyChange('underline', !style.underline)}
+                    onAlignment={(align) => onPropertyChange('alignment', align)}
+                    onFontSize={(size) => onPropertyChange('fontSize', size)}
+                    onFontFamily={(family) => onPropertyChange('fontFamily', family)}
+                    onColor={(color) => onPropertyChange('color', color)}
+                    showAdvanced={true}
+                    className="w-full"
+                  />
                 </div>
                 <Separator />
               </>

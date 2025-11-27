@@ -21,9 +21,11 @@ import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { AssetLibrary } from './AssetLibrary';
 import { PropertiesPanel } from './PropertiesPanel';
 import { EditorToolbar } from './EditorToolbar';
+import { SnapGuides } from './SnapGuides';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Video as VideoIcon } from 'lucide-react';
+import { useSnapAlignment, ElementBounds, calculateSnap } from '@/hooks/useSnapAlignment';
 
 interface CanvasElement {
   id: string;
@@ -547,6 +549,8 @@ export const ProfessionalMemorialEditor: React.FC<ProfessionalMemorialEditorProp
   const [draggedAsset, setDraggedAsset] = useState<any | null>(null);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [snapGuides, setSnapGuides] = useState<Array<{ type: 'horizontal' | 'vertical'; position: number; start: number; end: number }>>([]);
 
   // Suivre la position de la souris en temps réel
   useEffect(() => {
@@ -585,6 +589,7 @@ export const ProfessionalMemorialEditor: React.FC<ProfessionalMemorialEditorProp
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
+    setSnapGuides([]);
     
     // Si c'est un élément du canvas, stocker l'élément
     if (event.active.data.current?.type === 'canvas-element') {
@@ -608,6 +613,38 @@ export const ProfessionalMemorialEditor: React.FC<ProfessionalMemorialEditorProp
     }
   };
 
+  // Calculer les bounds de tous les éléments pour le snap
+  const allElementBounds = useMemo((): ElementBounds[] => {
+    return elements.map(el => ({
+      id: el.id,
+      x: el.style.x,
+      y: el.style.y,
+      width: el.style.width,
+      height: el.style.height,
+    }));
+  }, [elements]);
+
+  // Calculer les bounds de l'élément en cours de déplacement
+  const currentElementBounds = useMemo((): ElementBounds | null => {
+    if (!draggedElement) return null;
+    const element = elements.find(el => el.id === draggedElement.id);
+    if (!element) return null;
+    return {
+      id: element.id,
+      x: element.style.x,
+      y: element.style.y,
+      width: element.style.width,
+      height: element.style.height,
+    };
+  }, [draggedElement, elements]);
+
+  // Utiliser le hook de snap
+  const snapResult = useSnapAlignment(
+    currentElementBounds,
+    allElementBounds.filter(b => b.id !== currentElementBounds?.id),
+    snapEnabled && !!draggedElement
+  );
+
   const handleDragOver = useCallback((event: DragOverEvent) => {
     // Mise à jour en temps réel pendant le drag pour une meilleure UX
     if (event.active.data.current?.type === 'canvas-element' && draggedElement && canvasRef.current) {
@@ -626,8 +663,37 @@ export const ProfessionalMemorialEditor: React.FC<ProfessionalMemorialEditorProp
           const canvasWidth = canvasRef.current?.offsetWidth || 1280;
           const canvasHeight = canvasRef.current?.offsetHeight || 720;
           
-          const newX = Math.max(0, Math.min(element.style.x + adjustedDeltaX, canvasWidth - element.style.width));
-          const newY = Math.max(0, Math.min(element.style.y + adjustedDeltaY, canvasHeight - element.style.height));
+          let newX = Math.max(0, Math.min(element.style.x + adjustedDeltaX, canvasWidth - element.style.width));
+          let newY = Math.max(0, Math.min(element.style.y + adjustedDeltaY, canvasHeight - element.style.height));
+          
+          // Appliquer le snap si disponible
+          if (snapEnabled) {
+            // Calculer la nouvelle position avec snap
+            const currentBounds: ElementBounds = {
+              id: element.id,
+              x: newX,
+              y: newY,
+              width: element.style.width,
+              height: element.style.height,
+            };
+            
+            // Recalculer le snap avec la nouvelle position
+            const tempSnap = calculateSnap(
+              currentBounds,
+              allElementBounds.filter(b => b.id !== element.id)
+            );
+            
+            if (tempSnap) {
+              newX = Math.max(0, Math.min(tempSnap.snappedX, canvasWidth - element.style.width));
+              newY = Math.max(0, Math.min(tempSnap.snappedY, canvasHeight - element.style.height));
+              // Mettre à jour les guides visuels
+              setSnapGuides(tempSnap.guides);
+            } else {
+              setSnapGuides([]);
+            }
+          } else {
+            setSnapGuides([]);
+          }
           
           return prev.map(el => 
             el.id === draggedElement.id
@@ -656,7 +722,7 @@ export const ProfessionalMemorialEditor: React.FC<ProfessionalMemorialEditorProp
         });
       }
     }
-  }, [draggedElement, draggedAsset, zoom, dragPosition]);
+  }, [draggedElement, draggedAsset, zoom, dragPosition, snapResult, snapEnabled, allElementBounds]);
 
   // Fonction utilitaire pour calculer la position relative au canvas
   const getCanvasPosition = useCallback((clientX: number, clientY: number): { x: number; y: number } | null => {
@@ -688,6 +754,7 @@ export const ProfessionalMemorialEditor: React.FC<ProfessionalMemorialEditorProp
       setDraggedAsset(null);
       setDragPosition(null);
       setMousePosition(null);
+      setSnapGuides([]);
       return;
     }
 
@@ -807,6 +874,7 @@ export const ProfessionalMemorialEditor: React.FC<ProfessionalMemorialEditorProp
     setDraggedAsset(null);
     setDragPosition(null);
     setMousePosition(null);
+    setSnapGuides([]);
   };
 
   const addToHistory = (newElements: CanvasElement[]) => {
@@ -963,6 +1031,9 @@ export const ProfessionalMemorialEditor: React.FC<ProfessionalMemorialEditorProp
                   backgroundImage={data.heroBackgroundPhoto}
                   backgroundVideo={data.heroBackgroundPhoto?.endsWith('.mp4') ? data.heroBackgroundPhoto : undefined}
                 />
+                {snapGuides.length > 0 && snapEnabled && draggedElement && (
+                  <SnapGuides guides={snapGuides} containerRef={canvasRef} />
+                )}
                 {showGrid && (
                   <div
                     className="absolute inset-0 pointer-events-none"
