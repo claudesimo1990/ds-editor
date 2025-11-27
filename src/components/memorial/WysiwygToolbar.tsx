@@ -81,12 +81,12 @@ export const WysiwygToolbar: React.FC<WysiwygToolbarProps> = ({
     <div
       className={cn(
         'flex items-center gap-1 bg-white border border-gray-300 rounded-lg shadow-lg p-1.5',
-        'backdrop-blur-sm',
+        'backdrop-blur-sm relative z-[100]',
         className
       )}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
-      style={{ pointerEvents: 'auto' }}
+      style={{ pointerEvents: 'auto', zIndex: 100 }}
     >
       {/* Format de texte - Gras, Italique, Souligné */}
       <div className="flex items-center gap-0.5 border-r border-gray-300 pr-1.5 mr-1.5">
@@ -194,7 +194,7 @@ export const WysiwygToolbar: React.FC<WysiwygToolbarProps> = ({
               <ChevronDown className="w-3 h-3" />
             </button>
             {showFontSizeMenu && (
-              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[200] max-h-64 overflow-y-auto">
                 {fontSizes.map((size) => (
                   <button
                     key={size}
@@ -235,7 +235,7 @@ export const WysiwygToolbar: React.FC<WysiwygToolbarProps> = ({
               <ChevronDown className="w-3 h-3" />
             </button>
             {showFontFamilyMenu && (
-              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto min-w-[12rem]">
+              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[200] max-h-64 overflow-y-auto min-w-[12rem]">
                 {fontFamilies.map((family) => (
                   <button
                     key={family}
@@ -274,7 +274,7 @@ export const WysiwygToolbar: React.FC<WysiwygToolbarProps> = ({
               <Palette className="w-4 h-4" />
             </button>
             {showColorPicker && (
-              <div className="absolute top-full right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 p-3">
+              <div className="absolute top-full right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[200] p-3">
                 <input
                   type="color"
                   value={color}

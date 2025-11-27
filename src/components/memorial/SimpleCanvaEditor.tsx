@@ -1319,7 +1319,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
       <div className="flex-1 flex flex-col bg-white min-w-0 overflow-hidden">
         {/* Toolbar */}
         {selectedObject && (
-          <div className="bg-gray-100 border-b border-gray-300 p-2 flex items-center gap-2">
+          <div className="bg-gray-100 border-b border-gray-300 p-2 flex items-center gap-2 relative z-50">
             {selectedObject.type === 'textbox' && (
               <WysiwygToolbar
                 bold={(selectedObject as Textbox).fontWeight === 'bold' || (selectedObject as Textbox).fontWeight === 700}
