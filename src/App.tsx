@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom'
 
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { Toaster } from '@/components/ui/toaster'
@@ -19,6 +19,7 @@ import Index from './pages/Index'
 import LandingPage from './pages/LandingPage'
 import MemorialEditor from './pages/MemorialEditor'
 import MemorialPageView from './pages/MemorialPageView'
+import MemorialShareView from './pages/MemorialShareView'
 import NotFound from './pages/NotFound'
 import ObituaryView from './pages/ObituaryView'
 import Traueranzeigen from './pages/Traueranzeigen'
@@ -30,6 +31,18 @@ const queryClient = new QueryClient()
 
 const AppContent = () => {
   useScrollToTop()
+  const location = useLocation()
+
+  // Route de partage sans navigation ni footer
+  const isShareRoute = location.pathname.startsWith('/gedenkseite/share/')
+
+  if (isShareRoute) {
+    return (
+      <Routes>
+        <Route path='/gedenkseite/share/:id' element={<MemorialShareView />} />
+      </Routes>
+    )
+  }
 
   return (
     <FiltersProvider>

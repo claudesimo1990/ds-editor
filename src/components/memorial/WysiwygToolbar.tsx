@@ -80,8 +80,8 @@ export const WysiwygToolbar: React.FC<WysiwygToolbarProps> = ({
   return (
     <div
       className={cn(
-        'flex items-center gap-1 bg-white border border-gray-300 rounded-lg shadow-lg p-1.5',
-        'backdrop-blur-sm relative z-[100]',
+        'flex items-center gap-0 bg-transparent',
+        'relative z-[100]',
         className
       )}
       onClick={(e) => e.stopPropagation()}
@@ -89,112 +89,112 @@ export const WysiwygToolbar: React.FC<WysiwygToolbarProps> = ({
       style={{ pointerEvents: 'auto', zIndex: 100 }}
     >
       {/* Format de texte - Gras, Italique, Souligné */}
-      <div className="flex items-center gap-0.5 border-r border-gray-300 pr-1.5 mr-1.5">
+      <div className="flex items-center gap-1 border-r border-gray-600 pr-3 mr-3">
         <button
           type="button"
           onClick={onBold}
           onMouseDown={(e) => e.preventDefault()}
           className={cn(
-            'p-2 rounded-md transition-colors',
-            'hover:bg-gray-100 active:bg-gray-200',
-            bold && 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+            'p-2 rounded transition-colors',
+            'hover:bg-gray-700 active:bg-gray-600',
+            bold && 'bg-purple-600 text-white hover:bg-purple-700'
           )}
-          title="Gras (Ctrl+B)"
+          title="Fett (Strg+B)"
         >
-          <Bold className="w-4 h-4" />
+          <Bold className="w-5 h-5" />
         </button>
         <button
           type="button"
           onClick={onItalic}
           onMouseDown={(e) => e.preventDefault()}
           className={cn(
-            'p-2 rounded-md transition-colors',
-            'hover:bg-gray-100 active:bg-gray-200',
-            italic && 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+            'p-2 rounded transition-colors',
+            'hover:bg-gray-700 active:bg-gray-600',
+            italic && 'bg-purple-600 text-white hover:bg-purple-700'
           )}
-          title="Italique (Ctrl+I)"
+          title="Kursiv (Strg+I)"
         >
-          <Italic className="w-4 h-4" />
+          <Italic className="w-5 h-5" />
         </button>
         <button
           type="button"
           onClick={onUnderline}
           onMouseDown={(e) => e.preventDefault()}
           className={cn(
-            'p-2 rounded-md transition-colors',
-            'hover:bg-gray-100 active:bg-gray-200',
-            underline && 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+            'p-2 rounded transition-colors',
+            'hover:bg-gray-700 active:bg-gray-600',
+            underline && 'bg-purple-600 text-white hover:bg-purple-700'
           )}
-          title="Souligné (Ctrl+U)"
+          title="Unterstrichen (Strg+U)"
         >
-          <Underline className="w-4 h-4" />
+          <Underline className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Alignement */}
-      <div className="flex items-center gap-0.5 border-r border-gray-300 pr-1.5 mr-1.5">
+      {/* Ausrichtung */}
+      <div className="flex items-center gap-1 border-r border-gray-600 pr-3 mr-3">
         <button
           type="button"
           onClick={() => onAlignment?.('left')}
           onMouseDown={(e) => e.preventDefault()}
           className={cn(
-            'p-2 rounded-md transition-colors',
-            'hover:bg-gray-100 active:bg-gray-200',
-            alignment === 'left' && 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+            'p-2 rounded transition-colors text-gray-300',
+            'hover:bg-gray-700 active:bg-gray-600',
+            alignment === 'left' && 'bg-purple-600 text-white hover:bg-purple-700'
           )}
-          title="Aligner à gauche"
+          title="Links ausrichten"
         >
-          <AlignLeft className="w-4 h-4" />
+          <AlignLeft className="w-5 h-5" />
         </button>
         <button
           type="button"
           onClick={() => onAlignment?.('center')}
           onMouseDown={(e) => e.preventDefault()}
           className={cn(
-            'p-2 rounded-md transition-colors',
-            'hover:bg-gray-100 active:bg-gray-200',
-            alignment === 'center' && 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+            'p-2 rounded transition-colors text-gray-300',
+            'hover:bg-gray-700 active:bg-gray-600',
+            alignment === 'center' && 'bg-purple-600 text-white hover:bg-purple-700'
           )}
-          title="Centrer"
+          title="Zentrieren"
         >
-          <AlignCenter className="w-4 h-4" />
+          <AlignCenter className="w-5 h-5" />
         </button>
         <button
           type="button"
           onClick={() => onAlignment?.('right')}
           onMouseDown={(e) => e.preventDefault()}
           className={cn(
-            'p-2 rounded-md transition-colors',
-            'hover:bg-gray-100 active:bg-gray-200',
-            alignment === 'right' && 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+            'p-2 rounded transition-colors text-gray-300',
+            'hover:bg-gray-700 active:bg-gray-600',
+            alignment === 'right' && 'bg-purple-600 text-white hover:bg-purple-700'
           )}
-          title="Aligner à droite"
+          title="Rechts ausrichten"
         >
-          <AlignRight className="w-4 h-4" />
+          <AlignRight className="w-5 h-5" />
         </button>
       </div>
 
       {showAdvanced && (
         <>
-          {/* Taille de police */}
-          <div className="relative border-r border-gray-300 pr-1.5 mr-1.5">
+          {/* Schriftgröße */}
+          <div className="relative border-r border-gray-600 pr-3 mr-3">
             <button
               type="button"
               onClick={() => setShowFontSizeMenu(!showFontSizeMenu)}
               onMouseDown={(e) => e.preventDefault()}
               className={cn(
-                'flex items-center gap-1 px-2 py-2 rounded-md transition-colors',
-                'hover:bg-gray-100 active:bg-gray-200',
-                showFontSizeMenu && 'bg-gray-100'
+                'flex items-center gap-2 px-3 py-2 rounded transition-colors text-gray-300',
+                'hover:bg-gray-700 active:bg-gray-600',
+                showFontSizeMenu && 'bg-gray-700'
               )}
-              title="Taille de police"
+              title="Schriftgröße"
             >
-              <Type className="w-4 h-4" />
-              <span className="text-sm font-medium min-w-[2rem] text-center">{fontSize}</span>
-              <ChevronDown className="w-3 h-3" />
+              <Type className="w-5 h-5" />
+              <span className="text-sm font-medium min-w-[2.5rem] text-center">{fontSize}</span>
+              <ChevronDown className="w-4 h-4" />
             </button>
             {showFontSizeMenu && (
-              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[200] max-h-64 overflow-y-auto">
+              <div className="absolute top-full left-0 mt-2 bg-[#2d2d2d] border border-gray-600 rounded-lg shadow-xl z-[200] max-h-64 overflow-y-auto">
                 {fontSizes.map((size) => (
                   <button
                     key={size}
@@ -205,8 +205,8 @@ export const WysiwygToolbar: React.FC<WysiwygToolbarProps> = ({
                     }}
                     onMouseDown={(e) => e.preventDefault()}
                     className={cn(
-                      'w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 transition-colors',
-                      fontSize === size && 'bg-blue-100 text-blue-700 font-semibold'
+                      'w-full px-3 py-1.5 text-left text-sm text-gray-300 hover:bg-gray-700 transition-colors',
+                      fontSize === size && 'bg-purple-600 text-white font-semibold'
                     )}
                   >
                     {size}px
@@ -216,26 +216,26 @@ export const WysiwygToolbar: React.FC<WysiwygToolbarProps> = ({
             )}
           </div>
 
-          {/* Famille de police */}
-          <div className="relative border-r border-gray-300 pr-1.5 mr-1.5">
+          {/* Schriftart */}
+          <div className="relative border-r border-gray-600 pr-3 mr-3">
             <button
               type="button"
               onClick={() => setShowFontFamilyMenu(!showFontFamilyMenu)}
               onMouseDown={(e) => e.preventDefault()}
               className={cn(
-                'flex items-center gap-1 px-2 py-2 rounded-md transition-colors',
-                'hover:bg-gray-100 active:bg-gray-200',
-                showFontFamilyMenu && 'bg-gray-100'
+                'flex items-center gap-2 px-3 py-2 rounded transition-colors text-gray-300',
+                'hover:bg-gray-700 active:bg-gray-600',
+                showFontFamilyMenu && 'bg-gray-700'
               )}
-              title="Famille de police"
+              title="Schriftart"
             >
-              <span className="text-sm font-medium min-w-[6rem] text-left" style={{ fontFamily }}>
+              <span className="text-sm font-medium min-w-[8rem] text-left" style={{ fontFamily }}>
                 {fontFamily}
               </span>
-              <ChevronDown className="w-3 h-3" />
+              <ChevronDown className="w-4 h-4" />
             </button>
             {showFontFamilyMenu && (
-              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[200] max-h-64 overflow-y-auto min-w-[12rem]">
+              <div className="absolute top-full left-0 mt-2 bg-[#2d2d2d] border border-gray-600 rounded-lg shadow-xl z-[200] max-h-64 overflow-y-auto min-w-[12rem]">
                 {fontFamilies.map((family) => (
                   <button
                     key={family}
@@ -246,8 +246,8 @@ export const WysiwygToolbar: React.FC<WysiwygToolbarProps> = ({
                     }}
                     onMouseDown={(e) => e.preventDefault()}
                     className={cn(
-                      'w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 transition-colors',
-                      fontFamily === family && 'bg-blue-100 text-blue-700 font-semibold'
+                      'w-full px-3 py-1.5 text-left text-sm text-gray-300 hover:bg-gray-700 transition-colors',
+                      fontFamily === family && 'bg-purple-600 text-white font-semibold'
                     )}
                     style={{ fontFamily }}
                   >
@@ -258,23 +258,23 @@ export const WysiwygToolbar: React.FC<WysiwygToolbarProps> = ({
             )}
           </div>
 
-          {/* Couleur du texte */}
-          <div className="relative">
+          {/* Textfarbe */}
+          <div className="relative border-r border-gray-600 pr-3 mr-3">
             <button
               type="button"
               onClick={() => setShowColorPicker(!showColorPicker)}
               onMouseDown={(e) => e.preventDefault()}
               className={cn(
-                'p-2 rounded-md transition-colors',
-                'hover:bg-gray-100 active:bg-gray-200',
-                showColorPicker && 'bg-gray-100'
+                'p-2 rounded transition-colors text-gray-300',
+                'hover:bg-gray-700 active:bg-gray-600',
+                showColorPicker && 'bg-gray-700'
               )}
-              title="Couleur du texte"
+              title="Textfarbe"
             >
-              <Palette className="w-4 h-4" />
+              <Palette className="w-5 h-5" />
             </button>
             {showColorPicker && (
-              <div className="absolute top-full right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[200] p-3">
+              <div className="absolute top-full right-0 mt-2 bg-[#2d2d2d] border border-gray-600 rounded-lg shadow-xl z-[200] p-3">
                 <input
                   type="color"
                   value={color}
@@ -282,12 +282,13 @@ export const WysiwygToolbar: React.FC<WysiwygToolbarProps> = ({
                     onColor?.(e.target.value);
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  className="w-full h-10 cursor-pointer rounded border border-gray-300"
+                  className="w-full h-10 cursor-pointer rounded border border-gray-600"
                 />
-                <div className="mt-2 text-xs text-gray-600 text-center">{color}</div>
+                <div className="mt-2 text-xs text-gray-400 text-center">{color}</div>
               </div>
             )}
           </div>
+
         </>
       )}
     </div>

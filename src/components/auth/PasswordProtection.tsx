@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,16 +10,28 @@ interface PasswordProtectionProps {
 }
 
 const PasswordProtection: React.FC<PasswordProtectionProps> = ({ children }) => {
+  const location = useLocation();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
+  // Routes accessibles sans authentification
+  const publicRoutes = ['/gedenkseite/share/'];
+
   useEffect(() => {
+    // Vérifier si la route actuelle est publique
+    const isPublicRoute = publicRoutes.some(route => location.pathname.startsWith(route));
+    
+    if (isPublicRoute) {
+      setIsAuthenticated(true);
+      return;
+    }
+
     const savedAuth = localStorage.getItem('memorial-auth');
     if (savedAuth === 'authenticated') {
       setIsAuthenticated(true);
     }
-  }, []);
+  }, [location.pathname]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

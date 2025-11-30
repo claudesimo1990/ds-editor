@@ -1059,7 +1059,7 @@ export const MemorialPreviewEditor: React.FC<Props> = ({
 
                   {type === 'text' ? (
                     <div contentEditable={isEditing} suppressContentEditableWarning onBlur={(e) => { const newFocus = document.activeElement as Node | null; const toolbarEl = document.querySelector('[data-memorial-toolbar]'); if (toolbarEl && newFocus && toolbarEl.contains(newFocus)) return; commitTextToData(key, e.currentTarget.innerText); setEditingField(null); setToolbarVisible(false); setShowTextFormatPopup(false); }} onMouseDown={(e) => { if (isEditing) e.stopPropagation(); }} style={{
-                      color: getStyle(key, 'color', '#111111'),
+                      color: getStyle(key, 'color', '#111111') || '#111111',
                       fontSize: `${fontSize}px`,
                       fontFamily: getStyle(key, 'fontFamily', 'Arial'),
                       fontWeight: getStyle(key, 'bold', false) ? 'bold' : 'normal',
@@ -1077,9 +1077,11 @@ export const MemorialPreviewEditor: React.FC<Props> = ({
                       lineHeight: '1.2',
                       overflow: 'hidden',
                       width: '100%',
+                      // Assurer la visibilité du texte
+                      textShadow: '0 1px 2px rgba(0,0,0,0.1)',
                       ...(typeof height === 'number' ? { height: '100%' } : {})
                     }}
-                    >{value}</div>
+                    >{value || ''}</div>
                   ) : (
                     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
                       {key.startsWith('gallery-') ? (

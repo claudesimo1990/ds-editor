@@ -5,7 +5,9 @@ import {
   FabricImage,
   FabricObject,
   Control,
-  TControlSet
+  TControlSet,
+  Rect,
+  Group
 } from 'fabric';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -32,7 +35,12 @@ import {
   Sparkles,
   Image as ImageIcon,
   Video,
-  Music
+  Music,
+  Circle,
+  Droplets,
+  Download,
+  Share2,
+  Save
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -45,6 +53,8 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { WysiwygToolbar } from './WysiwygToolbar';
+import { ElementBorderTool } from './ElementBorderTool';
+import { OpacityTool } from './OpacityTool';
 import { calculateSnap, ElementBounds } from '@/hooks/useSnapAlignment';
 
 interface SimpleCanvaEditorProps {
@@ -52,6 +62,11 @@ interface SimpleCanvaEditorProps {
   styles: Record<string, any>;
   onDataChange: (data: any) => void;
   onStylesChange: (styles: Record<string, any>) => void;
+  memorialId?: string; // ID de la page commémorative pour le partage
+  onSave?: () => void; // Fonction de sauvegarde optionnelle
+  onPreview?: (fn: () => void) => void; // Callback pour exposer handlePreview
+  onDownload?: (fn: () => void) => void; // Callback pour exposer handleDownload
+  onShare?: (fn: () => void) => void; // Callback pour exposer handleShare
 }
 
 export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
@@ -59,6 +74,11 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
   styles,
   onDataChange,
   onStylesChange,
+  memorialId,
+  onSave,
+  onPreview,
+  onDownload,
+  onShare,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
@@ -73,6 +93,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
   const [uploadedAudios, setUploadedAudios] = useState<string[]>(data?.audioGallery || []);
   const [canvasObjects, setCanvasObjects] = useState<any[]>([]);
   const [showPreview, setShowPreview] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
   const [snapGuides, setSnapGuides] = useState<Array<{ type: 'horizontal' | 'vertical'; position: number; start: number; end: number }>>([]);
   const [isDraggingObject, setIsDraggingObject] = useState(false);
 
@@ -89,6 +110,9 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
 
   // Ref pour stocker la fonction de sauvegarde
   const saveCanvasStateRef = useRef<() => void>();
+  
+  // Ref pour éviter de recharger le canvasState si on vient de le sauvegarder
+  const lastSavedCanvasStateRef = useRef<string | null>(null);
 
   // Sauvegarder l'état du canvas
   const saveCanvasState = useCallback(() => {
@@ -98,12 +122,17 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
       const json = JSON.stringify(fabricCanvasRef.current.toJSON());
       setCanvasObjects(JSON.parse(json).objects || []);
       
+      // Sauvegarder la référence pour éviter de recharger
+      lastSavedCanvasStateRef.current = json;
+      
       // Sauvegarder dans les données parentes
       onDataChange({ 
         ...data,
         canvasState: json,
         mainPhotoGallery: uploadedPhotos 
       });
+      
+      console.log('Canvas state saved:', json.substring(0, 100) + '...');
     } catch (e) {
       console.error('Error saving canvas state:', e);
     }
@@ -126,6 +155,119 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
       setUploadedAudios(data.audioGallery);
     }
   }, [data?.mainPhotoGallery, data?.videoGallery, data?.audioGallery]);
+
+  // Fonction pour créer/mettre à jour un rectangle de bordure autour d'un élément
+  const updateBorderRect = useCallback((obj: FabricObject, borderColor: string, borderWidth: number, borderStyle: 'solid' | 'dashed' = 'solid') => {
+    if (!fabricCanvasRef.current) return;
+    const canvas = fabricCanvasRef.current;
+    
+    // Supprimer l'ancien rectangle de bordure s'il existe
+    const existingBorder = (obj as any).borderRect;
+    if (existingBorder) {
+      canvas.remove(existingBorder);
+      // Nettoyer les event listeners
+      obj.off('moving', (obj as any).__updateBorder);
+      obj.off('scaling', (obj as any).__updateBorder);
+      obj.off('modified', (obj as any).__updateBorder);
+    }
+    
+    // Si la largeur est 0, ne pas créer de bordure
+    if (borderWidth === 0) {
+      (obj as any).borderRect = null;
+      (obj as any).borderColor = '';
+      (obj as any).borderWidth = 0;
+      (obj as any).borderStyle = '';
+      canvas.renderAll();
+      return;
+    }
+    
+    // Fonction pour calculer les coordonnées exactes des bords de l'élément
+    const getBoundingBox = (object: FabricObject) => {
+      // Obtenir les coordonnées des coins de l'objet après toutes les transformations
+      const boundingRect = object.getBoundingRect();
+      
+      // Pour les images, utiliser les coordonnées exactes du bounding box
+      if (object.type === 'image' || object.type === 'fabric-image') {
+        return {
+          left: boundingRect.left,
+          top: boundingRect.top,
+          width: boundingRect.width,
+          height: boundingRect.height,
+        };
+      }
+      
+      // Pour les autres éléments, utiliser les coordonnées standard
+      return {
+        left: object.left || 0,
+        top: object.top || 0,
+        width: (object.width || 0) * (object.scaleX || 1),
+        height: (object.height || 0) * (object.scaleY || 1),
+      };
+    };
+    
+    const bbox = getBoundingBox(obj);
+    
+    // Créer un rectangle de bordure exactement aux bords, sans padding
+    const borderRect = new Rect({
+      left: bbox.left,
+      top: bbox.top,
+      width: bbox.width,
+      height: bbox.height,
+      fill: 'transparent',
+      stroke: borderColor,
+      strokeWidth: borderWidth,
+      strokeDashArray: borderStyle === 'dashed' ? [5, 5] : [],
+      selectable: false,
+      evented: false,
+      excludeFromExport: false,
+      hasControls: false,
+      hasBorders: false,
+      lockMovementX: true,
+      lockMovementY: true,
+      lockRotation: true,
+      lockScalingX: true,
+      lockScalingY: true,
+      originX: 'left',
+      originY: 'top',
+    });
+    
+    // Stocker la référence dans l'élément
+    (obj as any).borderRect = borderRect;
+    (obj as any).borderColor = borderColor;
+    (obj as any).borderWidth = borderWidth;
+    (obj as any).borderStyle = borderStyle;
+    
+    // Ajouter le rectangle au canvas
+    canvas.add(borderRect);
+    canvas.sendToBack(borderRect);
+    
+    // Mettre à jour le rectangle quand l'élément bouge ou change
+    const updateBorder = () => {
+      if (!borderRect || !obj) return;
+      const newBbox = getBoundingBox(obj);
+      const currentBorderStyle = (obj as any).borderStyle || 'solid';
+      
+      borderRect.set({
+        left: newBbox.left,
+        top: newBbox.top,
+        width: newBbox.width,
+        height: newBbox.height,
+        strokeDashArray: currentBorderStyle === 'dashed' ? [5, 5] : [],
+      });
+      canvas.renderAll();
+    };
+    
+    // Stocker la fonction pour pouvoir la nettoyer plus tard
+    (obj as any).__updateBorder = updateBorder;
+    
+    // Écouter les changements de l'élément
+    obj.on('moving', updateBorder);
+    obj.on('scaling', updateBorder);
+    obj.on('modified', updateBorder);
+    obj.on('rotating', updateBorder);
+    
+    canvas.renderAll();
+  }, []);
 
   // Initialiser le canvas (une seule fois)
   useEffect(() => {
@@ -299,9 +441,35 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
 
     // Écouter la touche Delete pour supprimer l'objet sélectionné
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ne pas intercepter si l'utilisateur est en train de taper dans un input/textarea
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      
       if ((e.key === 'Delete' || e.key === 'Backspace') && canvas.getActiveObject()) {
         const activeObject = canvas.getActiveObject();
         if (activeObject) {
+          // Ne pas supprimer l'objet si c'est un Textbox en mode édition
+          if (activeObject.type === 'textbox') {
+            const textbox = activeObject as Textbox;
+            // Vérifier si le Textbox est en mode édition (isEditing)
+            // Dans Fabric.js, quand on édite un Textbox, isEditing est true
+            if ((textbox as any).isEditing || (textbox as any).editing) {
+              // Laisser Fabric.js gérer la suppression de caractère
+              return;
+            }
+            // Vérifier aussi si le Textbox a le focus (hiddenTextarea)
+            if ((canvas as any).hiddenTextarea && (canvas as any).hiddenTextarea === document.activeElement) {
+              return;
+            }
+          }
+          
+          // Supprimer aussi le rectangle de bordure s'il existe
+          const borderRect = (activeObject as any).borderRect;
+          if (borderRect) {
+            canvas.remove(borderRect);
+          }
           canvas.remove(activeObject);
           canvas.renderAll();
           setSelectedObject(null);
@@ -328,26 +496,73 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
     canvas.on('object:modified', handleObjectModified);
     canvas.on('object:added', handleObjectAdded);
     canvas.on('object:removed', handleObjectRemoved);
-
-    // Charger l'état initial si disponible (une seule fois, seulement si le canvas est vide)
-    if (data?.canvasState && canvas.getObjects().length === 0) {
-      try {
-        canvas.loadFromJSON(data.canvasState, () => {
-          canvas.renderAll();
-        });
-      } catch (e) {
-        console.error('Error loading canvas state:', e);
-      }
-    }
+    
+    // Écouter les modifications de texte pour sauvegarder
+    canvas.on('text:changed', handleObjectModified);
+    canvas.on('text:editing:exited', handleObjectModified);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       canvas.off('object:modified', handleObjectModified);
       canvas.off('object:added', handleObjectAdded);
       canvas.off('object:removed', handleObjectRemoved);
+      canvas.off('text:changed', handleObjectModified);
+      canvas.off('text:editing:exited', handleObjectModified);
       canvas.dispose();
     };
   }, []); // Ne pas réinitialiser le canvas à chaque changement de data
+
+  // Charger le canvasState quand il est disponible (après l'initialisation du canvas)
+  useEffect(() => {
+    if (!fabricCanvasRef.current || !data?.canvasState) return;
+    
+    const canvas = fabricCanvasRef.current;
+    const canvasStateToLoad = typeof data.canvasState === 'string' 
+      ? data.canvasState 
+      : JSON.stringify(data.canvasState);
+    
+    // Ne pas recharger si c'est l'état qu'on vient de sauvegarder
+    if (lastSavedCanvasStateRef.current === canvasStateToLoad) {
+      console.log('Skipping reload - same as last saved state');
+      return;
+    }
+    
+    // Vérifier si le canvas est vide ou si le canvasState a changé
+    const currentState = JSON.stringify(canvas.toJSON());
+    
+    // Ne charger que si le canvas est vide ou si l'état a changé
+    if (canvas.getObjects().length === 0 || currentState !== canvasStateToLoad) {
+      try {
+        console.log('Loading canvas state from data (length:', canvasStateToLoad.length, ')');
+        
+        // Vider le canvas avant de charger le nouvel état
+        canvas.clear();
+        
+        canvas.loadFromJSON(canvasStateToLoad, () => {
+          console.log('Canvas state loaded successfully, objects:', canvas.getObjects().length);
+          canvas.renderAll();
+          
+          // Restaurer les bordures pour chaque objet
+          canvas.getObjects().forEach((obj) => {
+            const borderWidth = (obj as any).borderWidth;
+            const borderColor = (obj as any).borderColor;
+            const borderStyle = (obj as any).borderStyle;
+            
+            if (borderWidth && borderWidth > 0 && borderColor) {
+              updateBorderRect(obj, borderColor, borderWidth, borderStyle || 'solid');
+            }
+          });
+          
+          // Mettre à jour la référence pour éviter de recharger
+          lastSavedCanvasStateRef.current = canvasStateToLoad;
+        }, (error: any) => {
+          console.error('Error loading canvas state:', error);
+        });
+      } catch (e) {
+        console.error('Error parsing canvas state:', e);
+      }
+    }
+  }, [data?.canvasState, updateBorderRect]);
 
   // Ajouter du texte
   const addText = useCallback((textType: 'heading' | 'subheading' | 'body' = 'body') => {
@@ -391,9 +606,49 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
     const videoFiles: File[] = [];
     const audioFiles: File[] = [];
 
+    // Fonction helper pour détecter le type de fichier
+    const getFileType = (file: File): 'image' | 'video' | 'audio' | 'unknown' => {
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      const mimeType = file.type.toLowerCase();
+      
+      // Vérifier d'abord par extension (plus fiable pour les fichiers audio)
+      const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma', 'opus'];
+      const videoExtensions = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'wmv', 'flv', 'mkv'];
+      const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'];
+      
+      if (fileExt && audioExtensions.includes(fileExt)) {
+        return 'audio';
+      }
+      if (fileExt && videoExtensions.includes(fileExt)) {
+        return 'video';
+      }
+      if (fileExt && imageExtensions.includes(fileExt)) {
+        return 'image';
+      }
+      
+      // Fallback sur le type MIME
+      if (mimeType.startsWith('image/')) {
+        return 'image';
+      }
+      if (mimeType.startsWith('video/')) {
+        // Certains fichiers audio peuvent avoir video/mpeg (MP3)
+        if (fileExt === 'mp3' || mimeType === 'video/mpeg') {
+          return 'audio';
+        }
+        return 'video';
+      }
+      if (mimeType.startsWith('audio/')) {
+        return 'audio';
+      }
+      
+      return 'unknown';
+    };
+
     // Validation et tri
     for (const file of files) {
-      if (file.type.startsWith('image/')) {
+      const fileType = getFileType(file);
+      
+      if (fileType === 'image') {
         if (file.size > 10 * 1024 * 1024) {
           toast({
             title: "Datei zu groß",
@@ -403,7 +658,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
           continue;
         }
         imageFiles.push(file);
-      } else if (file.type.startsWith('video/')) {
+      } else if (fileType === 'video') {
         if (file.size > 50 * 1024 * 1024) {
           toast({
             title: "Datei zu groß",
@@ -413,7 +668,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
           continue;
         }
         videoFiles.push(file);
-      } else if (file.type.startsWith('audio/')) {
+      } else if (fileType === 'audio') {
         if (file.size > 20 * 1024 * 1024) {
           toast({
             title: "Datei zu groß",
@@ -460,13 +715,13 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
         const fileName = `${user.id}/videos/${Date.now()}-${Math.random()}.${fileExt}`;
 
         const { data: uploadData, error } = await supabase.storage
-          .from('dde_memorial_photos')
+          .from('dde_memorial_media')
           .upload(fileName, file);
 
         if (error) throw error;
 
         const { data: { publicUrl } } = supabase.storage
-          .from('dde_memorial_photos')
+          .from('dde_memorial_media')
           .getPublicUrl(uploadData.path);
 
         return publicUrl;
@@ -478,13 +733,13 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
         const fileName = `${user.id}/audios/${Date.now()}-${Math.random()}.${fileExt}`;
 
         const { data: uploadData, error } = await supabase.storage
-          .from('dde_memorial_photos')
+          .from('dde_memorial_media')
           .upload(fileName, file);
 
         if (error) throw error;
 
         const { data: { publicUrl } } = supabase.storage
-          .from('dde_memorial_photos')
+          .from('dde_memorial_media')
           .getPublicUrl(uploadData.path);
 
         return publicUrl;
@@ -541,8 +796,8 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
     if (!fabricCanvasRef.current) {
       console.error('Canvas not initialized');
       toast({
-        title: "Erreur",
-        description: "Le canvas n'est pas encore initialisé. Veuillez réessayer.",
+        title: "Fehler",
+        description: "Canvas ist noch nicht initialisiert. Bitte versuchen Sie es erneut.",
         variant: "destructive",
       });
       return;
@@ -559,8 +814,8 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
     }).catch((error) => {
       console.error('Error loading image:', error);
       toast({
-        title: "Erreur",
-        description: "Impossible de charger l'image. Vérifiez l'URL ou les permissions CORS.",
+        title: "Fehler",
+        description: "Bild konnte nicht geladen werden. Überprüfen Sie die URL oder CORS-Berechtigungen.",
         variant: "destructive",
       });
     });
@@ -569,8 +824,8 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
       if (!img || !fabricCanvasRef.current) {
         console.error('Failed to load image or canvas not available');
         toast({
-          title: "Erreur",
-          description: "Impossible de charger l'image.",
+          title: "Fehler",
+          description: "Bild konnte nicht geladen werden.",
           variant: "destructive",
         });
         return;
@@ -630,6 +885,11 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
     
     const activeObject = fabricCanvasRef.current.getActiveObject();
     if (activeObject) {
+      // Supprimer aussi le rectangle de bordure s'il existe
+      const borderRect = (activeObject as any).borderRect;
+      if (borderRect) {
+        fabricCanvasRef.current.remove(borderRect);
+      }
       fabricCanvasRef.current.remove(activeObject);
       fabricCanvasRef.current.renderAll();
       setSelectedObject(null);
@@ -662,8 +922,43 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
 
   // Prévisualisation
   const handlePreview = useCallback(() => {
-    if (!fabricCanvasRef.current) return;
-    setShowPreview(true);
+    if (!fabricCanvasRef.current) {
+      toast({
+        title: "Fehler",
+        description: "Canvas ist nicht verfügbar.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Générer l'image de prévisualisation
+    try {
+      const canvas = fabricCanvasRef.current;
+      canvas.renderAll(); // S'assurer que le canvas est rendu
+      
+      const dataURL = canvas.toDataURL({
+        format: 'png',
+        quality: 1,
+        multiplier: 2,
+      });
+      
+      if (dataURL && dataURL !== 'data:,') {
+        setPreviewImageUrl(dataURL);
+        setShowPreview(true);
+      } else {
+        toast({
+          title: "Hinweis",
+          description: "Der Canvas ist leer. Bitte fügen Sie zuerst Elemente hinzu.",
+        });
+      }
+    } catch (error) {
+      console.error('Error generating preview:', error);
+      toast({
+        title: "Fehler",
+        description: "Die Vorschau konnte nicht generiert werden.",
+        variant: "destructive",
+      });
+    }
   }, []);
 
   // Obtenir l'URL de l'image de prévisualisation
@@ -675,6 +970,186 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
       multiplier: 2,
     });
   }, []);
+
+  // Télécharger le canvas comme image professionnelle avec background
+  const handleDownload = useCallback(() => {
+    if (!fabricCanvasRef.current) {
+      toast({
+        title: "Fehler",
+        description: "Canvas ist nicht verfügbar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const canvas = fabricCanvasRef.current;
+      
+      // S'assurer que le canvas est rendu avant l'export
+      canvas.renderAll();
+      
+      // Créer un canvas temporaire avec une résolution élevée pour qualité professionnelle
+      const multiplier = 3; // 3x pour qualité professionnelle (3840x2160)
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvas.width! * multiplier;
+      tempCanvas.height = canvas.height! * multiplier;
+      const ctx = tempCanvas.getContext('2d');
+      
+      if (!ctx) {
+        throw new Error('Canvas context nicht verfügbar');
+      }
+      
+      // Remplir avec le background du canvas (toujours blanc par défaut)
+      const bgColor = canvas.backgroundColor;
+      if (bgColor) {
+        if (typeof bgColor === 'string') {
+          ctx.fillStyle = bgColor;
+        } else if (typeof bgColor === 'object' && 'source' in bgColor) {
+          // Si c'est un pattern ou gradient, utiliser blanc par défaut
+          ctx.fillStyle = '#ffffff';
+        } else {
+          ctx.fillStyle = '#ffffff';
+        }
+      } else {
+        ctx.fillStyle = '#ffffff';
+      }
+      ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+      
+      // Exporter le canvas Fabric.js avec le background
+      const dataURL = canvas.toDataURL({
+        format: 'png',
+        quality: 1,
+        multiplier: multiplier,
+        enableRetinaScaling: true,
+        withoutTransform: false,
+        withoutShadow: false,
+      });
+      
+      // Charger l'image et la dessiner sur le canvas temporaire
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = () => {
+        // Dessiner l'image sur le canvas temporaire
+        ctx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
+        
+        // Télécharger l'image finale en haute qualité
+        const finalDataURL = tempCanvas.toDataURL('image/png', 1.0);
+        const link = document.createElement('a');
+        link.download = `gedenkseite-${Date.now()}.png`;
+        link.href = finalDataURL;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast({
+          title: "Erfolgreich",
+          description: "Die Gedenkseite wurde in professioneller Qualität (3x) mit Hintergrund heruntergeladen.",
+        });
+      };
+      
+      img.onerror = () => {
+        // Fallback: utiliser l'export direct du canvas
+        const fallbackDataURL = canvas.toDataURL({
+          format: 'png',
+          quality: 1,
+          multiplier: multiplier,
+        });
+        
+        const link = document.createElement('a');
+        link.download = `gedenkseite-${Date.now()}.png`;
+        link.href = fallbackDataURL;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast({
+          title: "Erfolgreich",
+          description: "Die Gedenkseite wurde heruntergeladen.",
+        });
+      };
+      
+      img.src = dataURL;
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Fehler",
+        description: "Die Datei konnte nicht heruntergeladen werden.",
+        variant: "destructive",
+      });
+    }
+  }, []);
+
+  // Partager la page
+  const handleShare = useCallback(async () => {
+    // Si on n'a pas d'ID, afficher un message pour sauvegarder d'abord
+    if (!memorialId) {
+      toast({
+        title: "Bitte zuerst speichern",
+        description: "Bitte speichern Sie die Gedenkseite zuerst, bevor Sie sie teilen können.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // URL de la page de partage dédiée (sans éditeur)
+    const shareUrl = `${window.location.origin}/gedenkseite/share/${memorialId}`;
+    
+    // Vérifier si l'API Web Share est disponible
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Gedenkseite',
+          text: 'Teilen Sie diese Gedenkseite',
+          url: shareUrl,
+        });
+        toast({
+          title: "Geteilt",
+          description: "Die Seite wurde erfolgreich geteilt.",
+        });
+      } catch (error: any) {
+        // L'utilisateur a annulé le partage
+        if (error.name !== 'AbortError') {
+          console.error('Share error:', error);
+        }
+      }
+    } else {
+      // Fallback: copier le lien dans le presse-papiers
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        toast({
+          title: "Link kopiert",
+          description: "Der Link wurde in die Zwischenablage kopiert. Sie können ihn jetzt teilen.",
+        });
+      } catch (error) {
+        console.error('Copy error:', error);
+        toast({
+          title: "Fehler",
+          description: "Der Link konnte nicht kopiert werden.",
+          variant: "destructive",
+        });
+      }
+    }
+  }, [memorialId]);
+
+  // Exposer les fonctions via les callbacks (dans un useEffect pour éviter les mises à jour pendant le rendu)
+  useEffect(() => {
+    if (onPreview && handlePreview) {
+      onPreview(handlePreview);
+    }
+  }, [onPreview, handlePreview]);
+
+  useEffect(() => {
+    if (onDownload && handleDownload) {
+      onDownload(handleDownload);
+    }
+  }, [onDownload, handleDownload]);
+
+  useEffect(() => {
+    if (onShare && handleShare) {
+      onShare(handleShare);
+    }
+  }, [onShare, handleShare]);
 
   // Charger les symboles depuis les assets
   const symbolAssets = React.useMemo(() => {
@@ -797,8 +1272,8 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
       }).catch((error) => {
         console.error('Error loading video:', error);
         toast({
-          title: "Erreur",
-          description: "Impossible de charger la vidéo.",
+          title: "Fehler",
+          description: "Video konnte nicht geladen werden.",
           variant: "destructive",
         });
       });
@@ -807,16 +1282,114 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
     videoElement.load();
   }, []);
 
+  // Ajouter un audio au canvas
+  const addAudioToCanvas = useCallback((audioUrl: string) => {
+    console.log('addAudioToCanvas called with:', audioUrl);
+    if (!fabricCanvasRef.current) {
+      console.error('Canvas not initialized');
+      toast({
+        title: "Fehler",
+        description: "Canvas ist noch nicht initialisiert.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const canvas = fabricCanvasRef.current;
+    const canvasWidth = 1280;
+    const canvasHeight = 720;
+    
+    // Créer un rectangle pour représenter l'audio
+    const audioRect = new Rect({
+      left: (canvasWidth - 200) / 2,
+      top: (canvasHeight - 100) / 2,
+      width: 200,
+      height: 100,
+      fill: '#f3f4f6',
+      stroke: '#9333ea',
+      strokeWidth: 3,
+      rx: 8,
+      ry: 8,
+      selectable: true,
+      evented: true,
+      hasControls: true,
+      hasBorders: true,
+    });
+    
+    // Stocker l'URL de l'audio dans le rectangle
+    (audioRect as any).audioUrl = audioUrl;
+    (audioRect as any).type = 'audio';
+    
+    // Créer un texte avec l'icône audio pour afficher sur le rectangle
+    const audioText = new Textbox('🎵 Audio', {
+      left: (canvasWidth - 200) / 2 + 100,
+      top: (canvasHeight - 100) / 2 + 50,
+      width: 180,
+      fontSize: 24,
+      fontFamily: 'Arial',
+      fill: '#9333ea',
+      fontWeight: 'bold',
+      textAlign: 'center',
+      originX: 'center',
+      originY: 'center',
+      selectable: false,
+      evented: false,
+      hasControls: false,
+      hasBorders: false,
+    });
+    
+    // Stocker l'URL de l'audio dans le texte aussi
+    (audioText as any).audioUrl = audioUrl;
+    (audioText as any).type = 'audio';
+    
+    console.log('Adding audio objects to canvas');
+    // Ajouter les deux objets au canvas
+    canvas.add(audioRect);
+    canvas.add(audioText);
+    
+    // Mettre le rectangle en arrière-plan
+    canvas.sendToBack(audioRect);
+    
+    // Permettre de double-cliquer sur l'un ou l'autre pour écouter
+    const playAudio = () => {
+      console.log('Playing audio:', audioUrl);
+      const audio = new Audio(audioUrl);
+      audio.play().catch((error) => {
+        console.error('Error playing audio:', error);
+        toast({
+          title: "Fehler",
+          description: "Audio konnte nicht abgespielt werden.",
+          variant: "destructive",
+        });
+      });
+    };
+    
+    audioRect.on('mousedblclick', playAudio);
+    audioText.on('mousedblclick', playAudio);
+    
+    // Sélectionner le rectangle par défaut
+    canvas.setActiveObject(audioRect);
+    canvas.renderAll();
+    
+    console.log('Audio objects added, canvas rendered');
+    
+    requestAnimationFrame(() => {
+      if (fabricCanvasRef.current && saveCanvasStateRef.current) {
+        saveCanvasStateRef.current();
+      }
+    });
+  }, []);
+
   // Ajouter une icône au canvas (comme emoji)
   const addIconToCanvas = useCallback((iconName: string) => {
     if (!fabricCanvasRef.current) return;
     
     const emojiMap: Record<string, string> = {
-      'Cœur': '❤️',
-      'Fleur': '🌸',
-      'Croix': '✝️',
-      'Étoile': '⭐',
-      'Étincelles': '✨',
+      'Herz': '❤️',
+      'Blume': '🌸',
+      'Kreuz': '✝️',
+      'Stern': '⭐',
+      'Funkeln': '✨',
     };
     const emoji = emojiMap[iconName] || '⭐';
     
@@ -960,14 +1533,14 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                           className="text-xs data-[state=active]:bg-white data-[state=active]:text-blue-600"
                         >
                           <ImageIcon className="w-3 h-3 mr-1" />
-                          Images
+                          Bilder
                         </TabsTrigger>
                         <TabsTrigger 
                           value="videos" 
                           className="text-xs data-[state=active]:bg-white data-[state=active]:text-red-600"
                         >
                           <Video className="w-3 h-3 mr-1" />
-                          Vidéos
+                          Videos
                         </TabsTrigger>
                         <TabsTrigger 
                           value="audio" 
@@ -1049,7 +1622,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                                   </div>
                                   <div className="absolute top-1 right-1 bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1">
                                     <ImageIcon className="w-2.5 h-2.5" />
-                                    <span>Image</span>
+                                    <span>Bild</span>
                                   </div>
                                 </button>
                               );
@@ -1058,7 +1631,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                         ) : (
                           <div className="text-center py-8 text-gray-400 text-sm">
                             <ImageIcon className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                            <p>Aucune image uploadée</p>
+                            <p>Keine Bilder hochgeladen</p>
                           </div>
                         )}
                       </TabsContent>
@@ -1133,7 +1706,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                                   </div>
                                   <div className="absolute top-1 right-1 bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1">
                                     <Video className="w-2.5 h-2.5" />
-                                    <span>Vidéo</span>
+                                    <span>Video</span>
                                   </div>
                                 </button>
                               );
@@ -1142,7 +1715,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                         ) : (
                           <div className="text-center py-8 text-gray-400 text-sm">
                             <Video className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                            <p>Aucune vidéo uploadée</p>
+                            <p>Keine Videos hochgeladen</p>
                           </div>
                         )}
                       </TabsContent>
@@ -1193,32 +1766,63 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
 
                         {/* Gallery des audios uploadés */}
                         {uploadedAudios.length > 0 ? (
-                          <div className="space-y-2 mt-4">
+                          <div className="space-y-3 mt-4">
                             {uploadedAudios.map((audio: string | any, index: number) => {
                               const src = typeof audio === 'string' ? audio : audio.src || audio;
+                              const fileName = typeof audio === 'string' 
+                                ? audio.split('/').pop()?.split('?')[0] || `Audio ${index + 1}`
+                                : audio.name || `Audio ${index + 1}`;
                               return (
                                 <div
                                   key={`audio-${index}`}
-                                  className="flex items-center gap-2 p-3 bg-white border-2 border-gray-300 hover:border-purple-500 rounded-lg transition-colors cursor-pointer group"
+                                  className="flex flex-col gap-2 p-3 bg-white border-2 border-gray-300 hover:border-purple-500 rounded-lg transition-colors"
                                   onClick={(e) => {
-                                    e.preventDefault();
                                     e.stopPropagation();
-                                    // Pour l'audio, on pourrait ajouter une fonction spécifique
                                   }}
                                 >
-                                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                    <Music className="w-5 h-5 text-purple-600" />
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                      <Music className="w-5 h-5 text-purple-600" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-medium text-gray-700 truncate">
+                                        {fileName}
+                                      </p>
+                                    </div>
+                                    <div className="bg-purple-600 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 flex-shrink-0">
+                                      <Music className="w-2.5 h-2.5" />
+                                      <span>Audio</span>
+                                    </div>
                                   </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-medium text-gray-700 truncate">
-                                      Audio {index + 1}
-                                    </p>
-                                    <audio controls className="w-full h-6 mt-1" src={src} />
-                                  </div>
-                                  <div className="bg-purple-600 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 flex-shrink-0">
-                                    <Music className="w-2.5 h-2.5" />
-                                    <span>Audio</span>
-                                  </div>
+                                  <audio 
+                                    controls 
+                                    className="w-full h-10"
+                                    src={src}
+                                    preload="metadata"
+                                    onError={(e) => {
+                                      console.error('Error loading audio:', src, e);
+                                    }}
+                                  >
+                                    Ihr Browser unterstützt das Audio-Element nicht.
+                                  </audio>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full mt-2 text-xs bg-purple-50 hover:bg-purple-100 border-purple-300 text-purple-700"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      console.log('Button clicked, adding audio to canvas:', src);
+                                      addAudioToCanvas(src);
+                                      toast({
+                                        title: "Audio hinzugefügt",
+                                        description: "Das Audio wurde zum Canvas hinzugefügt.",
+                                      });
+                                    }}
+                                  >
+                                    <Plus className="w-3 h-3 mr-1" />
+                                    Zum Canvas hinzufügen
+                                  </Button>
                                 </div>
                               );
                             })}
@@ -1226,7 +1830,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                         ) : (
                           <div className="text-center py-8 text-gray-400 text-sm">
                             <Music className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                            <p>Aucun audio uploadé</p>
+                            <p>Keine Audiodateien hochgeladen</p>
                           </div>
                         )}
                       </TabsContent>
@@ -1261,7 +1865,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                     ) : (
                       <div className="text-center py-8 text-gray-500">
                         <Sparkles className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">Aucun symbole disponible</p>
+                        <p className="text-sm">Keine Symbole verfügbar</p>
                       </div>
                     )}
                   </TabsContent>
@@ -1270,11 +1874,11 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                   <TabsContent value="icons" className="mt-0">
                     <div className="grid grid-cols-2 gap-3">
                       {[
-                        { id: 'icon-heart', name: 'Cœur', icon: Heart },
-                        { id: 'icon-flower', name: 'Fleur', icon: Flower2 },
-                        { id: 'icon-cross', name: 'Croix', icon: Cross },
-                        { id: 'icon-star', name: 'Étoile', icon: Star },
-                        { id: 'icon-sparkles', name: 'Étincelles', icon: Sparkles },
+                        { id: 'icon-heart', name: 'Herz', icon: Heart },
+                        { id: 'icon-flower', name: 'Blume', icon: Flower2 },
+                        { id: 'icon-cross', name: 'Kreuz', icon: Cross },
+                        { id: 'icon-star', name: 'Stern', icon: Star },
+                        { id: 'icon-sparkles', name: 'Funkeln', icon: Sparkles },
                       ].map((asset) => {
                         const IconComponent = asset.icon;
                         return (
@@ -1317,11 +1921,10 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
 
       {/* Canvas principal */}
       <div className="flex-1 flex flex-col bg-white min-w-0 overflow-hidden">
-        {/* Toolbar */}
-        {selectedObject && (
-          <div className="bg-gray-100 border-b border-gray-300 p-2 flex items-center gap-2 relative z-50">
-            {selectedObject.type === 'textbox' && (
-              <WysiwygToolbar
+        {/* Toolbar - Design moderne style Canva - Fixe en haut */}
+        <div className="bg-[#2d2d2d] border-b border-gray-700 px-4 py-3 flex items-center justify-center gap-3 relative flex-shrink-0 min-h-[56px] shadow-lg sticky top-0" style={{ zIndex: 1000 }}>
+          {selectedObject && selectedObject.type === 'textbox' && (
+            <WysiwygToolbar
                 bold={(selectedObject as Textbox).fontWeight === 'bold' || (selectedObject as Textbox).fontWeight === 700}
                 italic={(selectedObject as Textbox).fontStyle === 'italic'}
                 underline={(selectedObject as Textbox).textDecoration === 'underline'}
@@ -1334,6 +1937,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                     const textbox = selectedObject as Textbox;
                     textbox.set('fontWeight', textbox.fontWeight === 'bold' || textbox.fontWeight === 700 ? 'normal' : 'bold');
                     fabricCanvasRef.current.renderAll();
+                    saveCanvasStateRef.current?.();
                   }
                 }}
                 onItalic={() => {
@@ -1341,6 +1945,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                     const textbox = selectedObject as Textbox;
                     textbox.set('fontStyle', textbox.fontStyle === 'italic' ? 'normal' : 'italic');
                     fabricCanvasRef.current.renderAll();
+                    saveCanvasStateRef.current?.();
                   }
                 }}
                 onUnderline={() => {
@@ -1348,6 +1953,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                     const textbox = selectedObject as Textbox;
                     textbox.set('textDecoration', textbox.textDecoration === 'underline' ? '' : 'underline');
                     fabricCanvasRef.current.renderAll();
+                    saveCanvasStateRef.current?.();
                   }
                 }}
                 onAlignment={(align) => {
@@ -1355,6 +1961,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                     const textbox = selectedObject as Textbox;
                     textbox.set('textAlign', align);
                     fabricCanvasRef.current.renderAll();
+                    saveCanvasStateRef.current?.();
                   }
                 }}
                 onFontSize={(size) => {
@@ -1362,6 +1969,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                     const textbox = selectedObject as Textbox;
                     textbox.set('fontSize', size);
                     fabricCanvasRef.current.renderAll();
+                    saveCanvasStateRef.current?.();
                   }
                 }}
                 onFontFamily={(family) => {
@@ -1369,6 +1977,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                     const textbox = selectedObject as Textbox;
                     textbox.set('fontFamily', family);
                     fabricCanvasRef.current.renderAll();
+                    saveCanvasStateRef.current?.();
                   }
                 }}
                 onColor={(color) => {
@@ -1376,24 +1985,98 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                     const textbox = selectedObject as Textbox;
                     textbox.set('fill', color);
                     fabricCanvasRef.current.renderAll();
+                    saveCanvasStateRef.current?.();
                   }
                 }}
                 showAdvanced={true}
               />
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={deleteSelected}
-              className="text-gray-700 hover:bg-gray-200 ml-auto"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-        )}
+          )}
+          
+          {/* Bordure pour tous les éléments - Visible seulement si un élément est sélectionné */}
+          {selectedObject && (
+            <div className="border-l border-gray-600 pl-3 ml-3">
+              <ElementBorderTool
+                strokeColor={((selectedObject as any)?.borderColor as string) || '#000000'}
+                strokeWidth={((selectedObject as any)?.borderWidth as number) || 0}
+                strokeStyle={((selectedObject as any)?.borderStyle as 'solid' | 'dashed') || 'solid'}
+                onStrokeColor={(color) => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const borderWidth = ((selectedObject as any).borderWidth as number) || 0;
+                    const borderStyle = ((selectedObject as any).borderStyle as 'solid' | 'dashed') || 'solid';
+                    updateBorderRect(selectedObject, color, borderWidth, borderStyle);
+                    saveCanvasStateRef.current?.();
+                  }
+                }}
+                onStrokeWidth={(width) => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const borderColor = ((selectedObject as any).borderColor as string) || '#000000';
+                    const borderStyle = ((selectedObject as any).borderStyle as 'solid' | 'dashed') || 'solid';
+                    updateBorderRect(selectedObject, borderColor, width, borderStyle);
+                    saveCanvasStateRef.current?.();
+                  }
+                }}
+                onStrokeStyle={(style) => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    const borderColor = ((selectedObject as any).borderColor as string) || '#000000';
+                    const borderWidth = ((selectedObject as any).borderWidth as number) || 0;
+                    // Mettre à jour le style dans l'objet
+                    (selectedObject as any).borderStyle = style;
+                    // Recréer le rectangle avec le nouveau style
+                    updateBorderRect(selectedObject, borderColor, borderWidth, style);
+                    saveCanvasStateRef.current?.();
+                  }
+                }}
+                onRemoveBorder={() => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    updateBorderRect(selectedObject, '#000000', 0, 'solid');
+                    saveCanvasStateRef.current?.();
+                  }
+                }}
+              />
+            </div>
+          )}
+          
+          {/* Contrôle d'opacité pour tous les éléments */}
+          {selectedObject && (
+            <div className="border-l border-gray-600 pl-3 ml-3">
+              <OpacityTool
+                opacity={Math.round((selectedObject.opacity || 1) * 100)}
+                onOpacityChange={(opacity) => {
+                  if (fabricCanvasRef.current && selectedObject) {
+                    // Convertir le pourcentage en valeur 0-1 pour Fabric.js
+                    selectedObject.set('opacity', opacity / 100);
+                    fabricCanvasRef.current.renderAll();
+                    saveCanvasStateRef.current?.();
+                  }
+                }}
+              />
+            </div>
+          )}
+          
+          {selectedObject && (
+            <>
+              <div className="border-l border-gray-600 ml-3 h-6" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={deleteSelected}
+                className="text-gray-300 hover:bg-red-600/20 hover:text-red-400 transition-colors"
+                title="Löschen"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </>
+          )}
+          {!selectedObject && (
+            <div className="text-sm text-gray-400 px-4 flex items-center gap-2">
+              <Circle className="w-4 h-4 opacity-50" />
+              <span>Wählen Sie ein Element aus, um es zu bearbeiten</span>
+            </div>
+          )}
+        </div>
 
         {/* Canvas */}
-        <div className="flex-1 overflow-auto bg-gray-50 flex items-center justify-center p-8 min-h-0 min-w-0">
+        <div className="flex-1 overflow-auto bg-gray-50 flex items-center justify-center p-8 min-h-0 min-w-0" style={{ zIndex: 1 }}>
           <Card className="shadow-lg border-2 border-gray-200 relative" style={{ maxWidth: '100%', maxHeight: '100%' }}>
             <div className="bg-white relative" style={{ width: '1280px', height: '720px', position: 'relative' }}>
               <canvas ref={canvasRef} style={{ position: 'relative', zIndex: 1 }} />
@@ -1454,7 +2137,65 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
           </Card>
         </div>
 
-        {/* Footer */}
+        {/* Audio Timeline - Unterhalb des Editors */}
+        {uploadedAudios.length > 0 && (
+          <div className="bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 flex-shrink-0">
+            <div className="flex items-center gap-3 mb-2">
+              <Music className="w-5 h-5 text-gray-400" />
+              <h3 className="text-sm font-medium text-gray-300">Audio-Timeline</h3>
+              <span className="text-xs text-gray-500">({uploadedAudios.length} {uploadedAudios.length === 1 ? 'Datei' : 'Dateien'})</span>
+            </div>
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {uploadedAudios.map((audio: string | any, index: number) => {
+                const src = typeof audio === 'string' ? audio : audio.src || audio;
+                const fileName = typeof audio === 'string' 
+                  ? audio.split('/').pop()?.split('?')[0] || `Audio ${index + 1}`
+                  : audio.name || `Audio ${index + 1}`;
+                return (
+                  <div
+                    key={`timeline-audio-${index}`}
+                    className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors"
+                  >
+                    <div className="w-8 h-8 bg-purple-600 rounded flex items-center justify-center flex-shrink-0">
+                      <Music className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-300 truncate">{fileName}</p>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <audio 
+                        controls 
+                        className="w-full h-8"
+                        src={src}
+                        preload="metadata"
+                        onError={(e) => {
+                          console.error('Error loading audio:', src, e);
+                        }}
+                      >
+                        Ihr Browser unterstützt das Audio-Element nicht.
+                      </audio>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const updatedAudios = uploadedAudios.filter((_, i) => i !== index);
+                        setUploadedAudios(updatedAudios);
+                        onDataChange({ audioGallery: updatedAudios });
+                      }}
+                      className="text-gray-400 hover:text-red-400 hover:bg-red-900/20 flex-shrink-0"
+                      title="Audio entfernen"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Footer - Contrôles de zoom uniquement */}
         <div className="bg-gray-100 border-t border-gray-300 p-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">Seiten</span>
@@ -1462,15 +2203,6 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
           </div>
 
           <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePreview}
-              className="text-gray-700 hover:bg-gray-200"
-            >
-              <Eye className="w-4 h-4 mr-2" />
-              Vorschau
-            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -1493,23 +2225,38 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
       </div>
 
       {/* Dialog de prévisualisation */}
+      <style>{`
+        [data-radix-dialog-overlay][data-state="open"] {
+          z-index: 9998 !important;
+        }
+        [data-radix-dialog-content][data-state="open"] {
+          z-index: 9999 !important;
+        }
+      `}</style>
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto !z-[9999]" style={{ zIndex: 9999 }}>
           <DialogHeader>
             <DialogTitle>Vorschau</DialogTitle>
+            <DialogDescription>
+              Vorschau der Gedenkseite
+            </DialogDescription>
           </DialogHeader>
-          <div className="flex items-center justify-center p-4 bg-gray-50 rounded-lg">
-            <img
-              src={getPreviewImageUrl()}
-              alt="Vorschau"
-              className="max-w-full max-h-[70vh] object-contain shadow-lg rounded"
-              onLoad={() => {
-                // Forcer le re-render si nécessaire
-                if (fabricCanvasRef.current) {
-                  fabricCanvasRef.current.renderAll();
-                }
-              }}
-            />
+          <div className="flex items-center justify-center p-4 bg-gray-50 rounded-lg min-h-[400px]">
+            {previewImageUrl ? (
+              <img
+                src={previewImageUrl}
+                alt="Vorschau"
+                className="max-w-full max-h-[70vh] object-contain shadow-lg rounded"
+                onError={() => {
+                  setPreviewImageUrl('');
+                }}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center text-gray-500">
+                <p className="text-lg mb-2">Keine Vorschau verfügbar</p>
+                <p className="text-sm">Der Canvas ist leer oder die Vorschau konnte nicht generiert werden.</p>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

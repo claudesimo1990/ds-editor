@@ -236,8 +236,19 @@ const UserDashboard = () => {
           .eq('is_active', true)
       ]);
 
-      if (obituariesResult.error) throw obituariesResult.error;
-      if (memorialPagesResult.error) throw memorialPagesResult.error;
+      if (obituariesResult.error) {
+        console.error('Error fetching obituaries:', obituariesResult.error);
+        throw obituariesResult.error;
+      }
+      if (memorialPagesResult.error) {
+        console.error('Error fetching memorial pages:', memorialPagesResult.error);
+        console.error('User ID:', user?.id);
+        throw memorialPagesResult.error;
+      }
+
+      console.log('Fetched memorial pages:', memorialPagesResult.data);
+      console.log('User ID:', user?.id);
+      console.log('Number of memorial pages:', memorialPagesResult.data?.length || 0);
 
       setObituaries(obituariesResult.data || []);
       setMemorialPages(memorialPagesResult.data || []);
@@ -250,9 +261,11 @@ const UserDashboard = () => {
       setCandleStats({ count: candles.length, recent: recentCandles.length });
 
     } catch (error: any) {
+      console.error('Error in fetchData:', error);
+      console.error('User ID:', user?.id);
       toast({
         title: "Fehler beim Laden",
-        description: error.message,
+        description: error.message || "Die Daten konnten nicht geladen werden.",
         variant: "destructive",
       });
     } finally {
@@ -477,16 +490,25 @@ const UserDashboard = () => {
   const filterItems = <T extends Obituary | MemorialPage>(items: T[]) => {
     let filtered = items;
     
+    console.log('Filtering items:', {
+      total: items.length,
+      searchTerm,
+      filterStatus,
+      sortBy
+    });
+    
     if (searchTerm) {
       filtered = filtered.filter(item => 
         `${item.deceased_first_name} ${item.deceased_last_name}`.toLowerCase().includes(searchTerm.toLowerCase())
       );
+      console.log('After search filter:', filtered.length);
     }
     
     if (filterStatus !== 'all') {
       filtered = filtered.filter(item => 
         filterStatus === 'published' ? item.is_published : !item.is_published
       );
+      console.log('After status filter:', filtered.length);
     }
     
     // Sort
@@ -504,6 +526,7 @@ const UserDashboard = () => {
       }
     });
     
+    console.log('Final filtered items:', filtered.length);
     return filtered;
   };
 
@@ -667,7 +690,7 @@ const UserDashboard = () => {
             </TabsTrigger>
             <TabsTrigger value="memorial-pages" className="font-elegant">
               <Heart className="h-4 w-4 mr-2" />
-              Gedenkseiten ({filteredMemorialPages.length})
+              Gedenkseiten ({memorialPages.length}/{filteredMemorialPages.length})
             </TabsTrigger>
             <TabsTrigger value="orders" className="font-elegant">
               <TrendingUp className="h-4 w-4 mr-2" />
@@ -939,6 +962,13 @@ const UserDashboard = () => {
           </TabsContent>
 
           <TabsContent value="memorial-pages" className="space-y-6">
+            {/* Debug info - remove in production */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="text-xs text-muted-foreground p-2 bg-muted rounded">
+                Debug: Total pages: {memorialPages.length}, Filtered: {filteredMemorialPages.length}, 
+                Filter status: {filterStatus}, Search: "{searchTerm}"
+              </div>
+            )}
             {filteredMemorialPages.length === 0 && memorialPages.length === 0 ? (
               <Card className="border-dashed border-2 border-muted">
                 <CardContent className="text-center py-16">
@@ -950,12 +980,29 @@ const UserDashboard = () => {
                     Erstellen Sie eine liebevolle Gedenkseite mit Fotos, Erinnerungen und einem Kondolenzbuch, 
                     wo Besucher Kerzen anzünden können.
                   </p>
-                  <Button asChild size="lg" variant="outline" className="shadow-elegant">
-                    <a href="/gedenkseite/erstellen">
-                      <Plus className="w-5 h-5 mr-2" />
-                      Erste Gedenkseite erstellen
-                    </a>
-                  </Button>
+                  <div className="flex gap-3 justify-center">
+                    <Button asChild size="lg" variant="outline" className="shadow-elegant">
+                      <a href="/gedenkseite/erstellen">
+                        <Plus className="w-5 h-5 mr-2" />
+                        Erste Gedenkseite erstellen
+                      </a>
+                    </Button>
+                    <Button 
+                      size="lg" 
+                      variant="ghost" 
+                      onClick={refreshData}
+                      className="shadow-elegant"
+                      disabled={loading}
+                    >
+                      <RefreshCw className={`w-5 h-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Aktualisieren
+                    </Button>
+                  </div>
+                  {loading && (
+                    <p className="text-xs text-muted-foreground mt-4">
+                      Lade Gedenkseiten...
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             ) : filteredMemorialPages.length === 0 ? (

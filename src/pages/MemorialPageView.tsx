@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Heart, Flame, Share2, Calendar, MapPin, Users, MessageCircle, Edit3, Camera, Save, X, Eye } from "lucide-react";
+import { Heart, Flame, Share2, Calendar, MapPin, Users, MessageCircle, Edit3, Camera, Save, X, Eye, Music } from "lucide-react";
 import { MemorialCandleModal } from "@/components/memorial/MemorialCandleModal";
 import WebGLCandle from "@/components/memorial/WebGLCandle";
 import MemorialPreviewEditor from "@/components/memorial/MemorialPreviewEditor";
@@ -499,6 +499,53 @@ const MemorialPageView: React.FC = () => {
             isEditable={false}
         />
         </div>
+        
+        {/* Audio Timeline - Unterhalb des Editors für öffentliche Ansicht */}
+        {memorialPage.style_config?.audioGallery && Array.isArray(memorialPage.style_config.audioGallery) && memorialPage.style_config.audioGallery.length > 0 && (
+          <div className="mx-auto max-w-[1300px] mt-4 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 rounded-lg">
+            <div className="flex items-center gap-3 mb-2">
+              <Music className="w-5 h-5 text-gray-400" />
+              <h3 className="text-sm font-medium text-gray-300">Audio-Timeline</h3>
+              <span className="text-xs text-gray-500">
+                ({memorialPage.style_config.audioGallery.length} {memorialPage.style_config.audioGallery.length === 1 ? 'Datei' : 'Dateien'})
+              </span>
+            </div>
+            <div className="space-y-2">
+              {memorialPage.style_config.audioGallery.map((audio: string | any, index: number) => {
+                const src = typeof audio === 'string' ? audio : audio.src || audio;
+                const fileName = typeof audio === 'string' 
+                  ? audio.split('/').pop()?.split('?')[0] || `Audio ${index + 1}`
+                  : audio.name || `Audio ${index + 1}`;
+                return (
+                  <div
+                    key={`public-audio-${index}`}
+                    className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg"
+                  >
+                    <div className="w-8 h-8 bg-purple-600 rounded flex items-center justify-center flex-shrink-0">
+                      <Music className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-300 truncate">{fileName}</p>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <audio 
+                        controls 
+                        className="w-full h-8"
+                        src={src}
+                        preload="metadata"
+                        onError={(e) => {
+                          console.error('Error loading audio:', src, e);
+                        }}
+                      >
+                        Ihr Browser unterstützt das Audio-Element nicht.
+                      </audio>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         </>
       ) : (
         <>

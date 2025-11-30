@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,9 @@ import {
   RotateCcw,
   Eye,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  Download,
+  Share2
 } from 'lucide-react';
 import { BasicInfoForm } from '@/components/memorial/BasicInfoForm';
 import { FamilyMembersForm } from '@/components/memorial/FamilyMembersForm';
@@ -105,6 +107,16 @@ const MemorialEditor = () => {
   const [showPublishingDialog, setShowPublishingDialog] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [existingMemorialId, setExistingMemorialId] = useState<string | null>(null);
+  
+  // Références aux fonctions de SimpleCanvaEditor (utiliser useRef pour éviter les mises à jour pendant le rendu)
+  const handlePreviewFnRef = useRef<(() => void) | null>(null);
+  const handleDownloadFnRef = useRef<(() => void) | null>(null);
+  const handleShareFnRef = useRef<(() => void) | null>(null);
+  
+  // États pour forcer le re-render quand les fonctions sont disponibles
+  const [hasPreviewFn, setHasPreviewFn] = useState(false);
+  const [hasDownloadFn, setHasDownloadFn] = useState(false);
+  const [hasShareFn, setHasShareFn] = useState(false);
 
   const [memorialStyles, setMemorialStyles] = useState<Record<string, any>>(() => {
     const saved = localStorage.getItem(`memorial-draft-${editId || 'new'}`);
@@ -441,9 +453,20 @@ const MemorialEditor = () => {
     if (!user) return setShowAuthPrompt(true);
     setIsSaving(true);
     try {
+      // Valider les données requises
+      if (!memorialData.deceased?.firstName || !memorialData.deceased?.lastName) {
+        toast({
+          title: 'Fehler',
+          description: 'Bitte füllen Sie mindestens den Vor- und Nachnamen der verstorbenen Person aus.',
+          variant: 'destructive'
+        });
+        setIsSaving(false);
+        return;
+      }
+
       const memorialPayload = {
         user_id: user.id,
-        category: memorialData.category,
+        category: memorialData.category || 'memorial',
         deceased_first_name: memorialData.deceased.firstName,
         deceased_last_name: memorialData.deceased.lastName,
         deceased_location_street: memorialData.deceased.locationStreet,
@@ -474,7 +497,11 @@ const MemorialEditor = () => {
         main_photo_gallery: memorialData.mainPhotoGallery,
         style_config: {
           ...memorialStyles,
-          canvasState: memorialData.canvasState || null,
+          canvasState: memorialData.canvasState 
+            ? (typeof memorialData.canvasState === 'string' 
+                ? memorialData.canvasState 
+                : JSON.stringify(memorialData.canvasState))
+            : null,
           videoGallery: memorialData.videoGallery || [],
           audioGallery: memorialData.audioGallery || [],
         },
@@ -505,16 +532,56 @@ const MemorialEditor = () => {
           .single();
       }
 
-      if (result.error) throw result.error;
+      if (result.error) {
+        console.error('Supabase error:', result.error);
+        console.error('Error details:', {
+          message: result.error.message,
+          details: result.error.details,
+          hint: result.error.hint,
+          code: result.error.code
+        });
+        throw result.error;
+      }
 
-      toast({ title: 'Entwurf gespeichert' });
+      console.log('Memorial page saved successfully:', result.data);
+      console.log('Saved with user_id:', user.id);
+      console.log('Page ID:', result.data?.id);
+
+      // Mettre à jour l'ID si c'est une nouvelle page
+      if (!existingMemorialId && result.data?.id) {
+        setExistingMemorialId(result.data.id);
+        // Mettre à jour l'URL sans recharger la page
+        const newUrl = `/gedenkseite/erstellen?edit=${result.data.id}`;
+        window.history.replaceState({}, '', newUrl);
+      }
+
+      toast({ 
+        title: 'Entwurf gespeichert',
+        description: 'Ihre Gedenkseite wurde erfolgreich gespeichert.'
+      });
       localStorage.removeItem(`memorial-draft-${editId || 'new'}`);
-      navigate('/user-bereich');
-    } catch (e) {
+      
+      // Attendre un peu avant de naviguer pour s'assurer que la sauvegarde est complète
+      setTimeout(() => {
+        navigate('/user-bereich');
+      }, 500);
+    } catch (e: any) {
       console.error('Error saving draft:', e);
+      console.error('Error object:', JSON.stringify(e, null, 2));
+      
+      // Afficher un message d'erreur plus détaillé
+      let errorMessage = 'Der Entwurf konnte nicht gespeichert werden.';
+      if (e?.message) {
+        errorMessage += ` ${e.message}`;
+      } else if (e?.details) {
+        errorMessage += ` ${e.details}`;
+      } else if (typeof e === 'string') {
+        errorMessage += ` ${e}`;
+      }
+      
       toast({
         title: 'Fehler',
-        description: 'Der Entwurf konnte nicht gespeichert werden.',
+        description: errorMessage,
         variant: 'destructive'
       });
     } finally {
@@ -563,7 +630,11 @@ const MemorialEditor = () => {
         main_photo_gallery: memorialData.mainPhotoGallery,
         style_config: {
           ...memorialStyles,
-          canvasState: memorialData.canvasState || null,
+          canvasState: memorialData.canvasState 
+            ? (typeof memorialData.canvasState === 'string' 
+                ? memorialData.canvasState 
+                : JSON.stringify(memorialData.canvasState))
+            : null,
           videoGallery: memorialData.videoGallery || [],
           audioGallery: memorialData.audioGallery || [],
         },
@@ -599,6 +670,14 @@ const MemorialEditor = () => {
       }
 
       if (memorialResult.error) throw memorialResult.error;
+
+      // Mettre à jour l'ID si c'est une nouvelle page
+      if (!existingMemorialId && memorialResult.data?.id) {
+        setExistingMemorialId(memorialResult.data.id);
+        // Mettre à jour l'URL sans recharger la page
+        const newUrl = `/gedenkseite/erstellen?edit=${memorialResult.data.id}`;
+        window.history.replaceState({}, '', newUrl);
+      }
 
       if (option.price > 0) {
         toast({
@@ -702,7 +781,7 @@ const MemorialEditor = () => {
             <h3 className="text-xl font-memorial flex items-center text-memorial-charcoal dark:text-memorial-heading">
               <Eye className="w-5 h-5 mr-2" /> Live Vorschau
             </h3>
-            <div className="flex space-x-2">
+            <div className="flex items-center space-x-2">
               <Button 
                 onClick={handleUndo} 
                 variant="outline" 
@@ -733,6 +812,55 @@ const MemorialEditor = () => {
                 <RotateCcw className="w-4 h-4 mr-1" />
                 Zurücksetzen
               </Button>
+              <div className="border-l border-gray-300 h-6 mx-2" />
+              {handleSaveDraft && (
+                <Button
+                  onClick={handleSaveDraft}
+                  variant="default"
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  title="Gedenkseite speichern"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Speichern
+                </Button>
+              )}
+              {hasPreviewFn && handlePreviewFnRef.current && (
+                <Button
+                  onClick={() => handlePreviewFnRef.current?.()}
+                  variant="outline"
+                  size="sm"
+                  className="text-memorial-charcoal hover:bg-memorial-platinum"
+                  title="Vorschau"
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  Vorschau
+                </Button>
+              )}
+              {hasDownloadFn && handleDownloadFnRef.current && (
+                <Button
+                  onClick={() => handleDownloadFnRef.current?.()}
+                  variant="outline"
+                  size="sm"
+                  className="text-memorial-charcoal hover:bg-memorial-platinum"
+                  title="Herunterladen"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Downloaden
+                </Button>
+              )}
+              {hasShareFn && handleShareFnRef.current && (
+                <Button
+                  onClick={() => handleShareFnRef.current?.()}
+                  variant="outline"
+                  size="sm"
+                  className="text-memorial-charcoal hover:bg-memorial-platinum"
+                  title="Teilen"
+                >
+                  <Share2 className="w-4 h-4 mr-2" />
+                  Teilen
+                </Button>
+              )}
             </div>
           </div>
           
@@ -743,6 +871,20 @@ const MemorialEditor = () => {
                 styles={memorialStyles}
                 onDataChange={handleDataChange}
                 onStylesChange={handleStylesChange}
+                memorialId={existingMemorialId || editId || undefined}
+                onSave={handleSaveDraft}
+                onPreview={(fn) => {
+                  handlePreviewFnRef.current = fn;
+                  setHasPreviewFn(true);
+                }}
+                onDownload={(fn) => {
+                  handleDownloadFnRef.current = fn;
+                  setHasDownloadFn(true);
+                }}
+                onShare={(fn) => {
+                  handleShareFnRef.current = fn;
+                  setHasShareFn(true);
+                }}
               />
             </div>
           </div>
