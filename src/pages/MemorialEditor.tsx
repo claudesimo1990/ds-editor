@@ -453,8 +453,14 @@ const MemorialEditor = () => {
     if (!user) return setShowAuthPrompt(true);
     setIsSaving(true);
     try {
-      // Valider les données requises
-      if (!memorialData.deceased?.firstName || !memorialData.deceased?.lastName) {
+      // Pour les uploads, on permet la sauvegarde même sans nom/prénom
+      // car l'utilisateur peut vouloir sauvegarder ses fichiers d'abord
+      const hasUploads = (memorialData.mainPhotoGallery && memorialData.mainPhotoGallery.length > 0) ||
+                        (memorialData.videoGallery && memorialData.videoGallery.length > 0) ||
+                        (memorialData.audioGallery && memorialData.audioGallery.length > 0);
+      
+      // Valider les données requises seulement si ce n'est pas juste un upload
+      if (!hasUploads && (!memorialData.deceased?.firstName || !memorialData.deceased?.lastName)) {
         toast({
           title: 'Fehler',
           description: 'Bitte füllen Sie mindestens den Vor- und Nachnamen der verstorbenen Person aus.',
@@ -463,12 +469,16 @@ const MemorialEditor = () => {
         setIsSaving(false);
         return;
       }
+      
+      // Si c'est juste un upload, utiliser des valeurs par défaut pour permettre la sauvegarde
+      const deceasedFirstName = memorialData.deceased?.firstName || 'Temporär';
+      const deceasedLastName = memorialData.deceased?.lastName || 'Temporär';
 
       const memorialPayload = {
         user_id: user.id,
         category: memorialData.category || 'memorial',
-        deceased_first_name: memorialData.deceased.firstName,
-        deceased_last_name: memorialData.deceased.lastName,
+        deceased_first_name: deceasedFirstName,
+        deceased_last_name: deceasedLastName,
         deceased_location_street: memorialData.deceased.locationStreet,
         deceased_location_city: memorialData.deceased.locationCity,
         deceased_location_zip: memorialData.deceased.locationZip,
@@ -493,8 +503,8 @@ const MemorialEditor = () => {
         main_photo_url: memorialData.mainPhoto,
         page_background: memorialData.pageBackground,
         hero_background_url: memorialData.heroBackgroundPhoto,
-        photo_gallery: memorialData.photoGallery,
-        main_photo_gallery: memorialData.mainPhotoGallery,
+        photo_gallery: Array.isArray(memorialData.photoGallery) ? memorialData.photoGallery : [],
+        main_photo_gallery: Array.isArray(memorialData.mainPhotoGallery) ? memorialData.mainPhotoGallery : [],
         style_config: {
           ...memorialStyles,
           canvasState: memorialData.canvasState 
@@ -502,8 +512,8 @@ const MemorialEditor = () => {
                 ? memorialData.canvasState 
                 : JSON.stringify(memorialData.canvasState))
             : null,
-          videoGallery: memorialData.videoGallery || [],
-          audioGallery: memorialData.audioGallery || [],
+          videoGallery: Array.isArray(memorialData.videoGallery) ? memorialData.videoGallery : [],
+          audioGallery: Array.isArray(memorialData.audioGallery) ? memorialData.audioGallery : [],
         },
         symbols: memorialData.symbols || [],
         frame_style: memorialData.frameStyle || 'none',
@@ -546,6 +556,7 @@ const MemorialEditor = () => {
       console.log('Memorial page saved successfully:', result.data);
       console.log('Saved with user_id:', user.id);
       console.log('Page ID:', result.data?.id);
+      console.log('Saved uploads - Photos:', memorialData.mainPhotoGallery?.length || 0, 'Videos:', memorialData.videoGallery?.length || 0, 'Audios:', memorialData.audioGallery?.length || 0);
 
       // Mettre à jour l'ID si c'est une nouvelle page
       if (!existingMemorialId && result.data?.id) {
@@ -555,9 +566,12 @@ const MemorialEditor = () => {
         window.history.replaceState({}, '', newUrl);
       }
 
+      // Utiliser la variable hasUploads déjà définie plus haut
       toast({ 
         title: 'Entwurf gespeichert',
-        description: 'Ihre Gedenkseite wurde erfolgreich gespeichert.'
+        description: hasUploads 
+          ? 'Ihre Dateien wurden erfolgreich in Ihrem Konto gespeichert.' 
+          : 'Ihre Gedenkseite wurde erfolgreich gespeichert.'
       });
       localStorage.removeItem(`memorial-draft-${editId || 'new'}`);
       
@@ -626,8 +640,8 @@ const MemorialEditor = () => {
         main_photo_url: memorialData.mainPhoto,
         page_background: memorialData.pageBackground,
         hero_background_url: memorialData.heroBackgroundPhoto,
-        photo_gallery: memorialData.photoGallery,
-        main_photo_gallery: memorialData.mainPhotoGallery,
+        photo_gallery: Array.isArray(memorialData.photoGallery) ? memorialData.photoGallery : [],
+        main_photo_gallery: Array.isArray(memorialData.mainPhotoGallery) ? memorialData.mainPhotoGallery : [],
         style_config: {
           ...memorialStyles,
           canvasState: memorialData.canvasState 
@@ -635,8 +649,8 @@ const MemorialEditor = () => {
                 ? memorialData.canvasState 
                 : JSON.stringify(memorialData.canvasState))
             : null,
-          videoGallery: memorialData.videoGallery || [],
-          audioGallery: memorialData.audioGallery || [],
+          videoGallery: Array.isArray(memorialData.videoGallery) ? memorialData.videoGallery : [],
+          audioGallery: Array.isArray(memorialData.audioGallery) ? memorialData.audioGallery : [],
         },
         symbols: memorialData.symbols || [],
         frame_style: memorialData.frameStyle || 'none',

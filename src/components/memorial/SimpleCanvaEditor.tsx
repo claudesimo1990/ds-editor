@@ -20,6 +20,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { 
   Type, 
   Upload,
@@ -40,7 +45,8 @@ import {
   Droplets,
   Download,
   Share2,
-  Save
+  Save,
+  Play
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -91,22 +97,120 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>(data?.mainPhotoGallery || []);
   const [uploadedVideos, setUploadedVideos] = useState<string[]>(data?.videoGallery || []);
   const [uploadedAudios, setUploadedAudios] = useState<string[]>(data?.audioGallery || []);
+  const [selectedAudiosForEditor, setSelectedAudiosForEditor] = useState<string[]>([]);
+  const [showAudioSelector, setShowAudioSelector] = useState(false);
   const [canvasObjects, setCanvasObjects] = useState<any[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
   const [snapGuides, setSnapGuides] = useState<Array<{ type: 'horizontal' | 'vertical'; position: number; start: number; end: number }>>([]);
   const [isDraggingObject, setIsDraggingObject] = useState(false);
 
-  // Récupérer l'utilisateur
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUser(user);
+  // Fonction pour charger les fichiers de l'utilisateur depuis le storage
+  const loadUserFilesFromStorage = useCallback(async (userId: string) => {
+    try {
+      // Charger les images depuis dde_memorial_photos
+      const { data: imageFiles, error: imageError } = await supabase.storage
+        .from('dde_memorial_photos')
+        .list(`${userId}/gallery`, {
+          limit: 100,
+          offset: 0,
+          sortBy: { column: 'created_at', order: 'desc' }
+        });
+
+      if (!imageError && imageFiles && imageFiles.length > 0) {
+        const imageUrls = imageFiles
+          .filter(file => file.name && !file.name.endsWith('.emptyFolderPlaceholder'))
+          .map(file => {
+            const { data: { publicUrl } } = supabase.storage
+              .from('dde_memorial_photos')
+              .getPublicUrl(`${userId}/gallery/${file.name}`);
+            return publicUrl;
+          });
+        
+        if (imageUrls.length > 0) {
+          setUploadedPhotos(prev => {
+            // Fusionner avec les fichiers existants, éviter les doublons
+            const merged = [...prev, ...imageUrls];
+            const unique = Array.from(new Set(merged));
+            if (unique.length !== prev.length) {
+              onDataChange({ mainPhotoGallery: unique });
+            }
+            return unique;
+          });
+        }
       }
-    };
-    checkUser();
-  }, []);
+
+      // Charger les vidéos depuis dde_memorial_media
+      const { data: videoFiles, error: videoError } = await supabase.storage
+        .from('dde_memorial_media')
+        .list(`${userId}/videos`, {
+          limit: 100,
+          offset: 0,
+          sortBy: { column: 'created_at', order: 'desc' }
+        });
+
+      if (!videoError && videoFiles && videoFiles.length > 0) {
+        const videoUrls = videoFiles
+          .filter(file => file.name && !file.name.endsWith('.emptyFolderPlaceholder'))
+          .map(file => {
+            const { data: { publicUrl } } = supabase.storage
+              .from('dde_memorial_media')
+              .getPublicUrl(`${userId}/videos/${file.name}`);
+            return publicUrl;
+          });
+        
+        if (videoUrls.length > 0) {
+          setUploadedVideos(prev => {
+            const merged = [...prev, ...videoUrls];
+            const unique = Array.from(new Set(merged));
+            if (unique.length !== prev.length) {
+              onDataChange({ videoGallery: unique });
+            }
+            return unique;
+          });
+        }
+      }
+
+      // Charger les audios depuis dde_memorial_media
+      const { data: audioFiles, error: audioError } = await supabase.storage
+        .from('dde_memorial_media')
+        .list(`${userId}/audios`, {
+          limit: 100,
+          offset: 0,
+          sortBy: { column: 'created_at', order: 'desc' }
+        });
+
+      if (!audioError && audioFiles && audioFiles.length > 0) {
+        const audioUrls = audioFiles
+          .filter(file => file.name && !file.name.endsWith('.emptyFolderPlaceholder'))
+          .map(file => {
+            const { data: { publicUrl } } = supabase.storage
+              .from('dde_memorial_media')
+              .getPublicUrl(`${userId}/audios/${file.name}`);
+            return publicUrl;
+          });
+        
+        if (audioUrls.length > 0) {
+          setUploadedAudios(prev => {
+            const merged = [...prev, ...audioUrls];
+            const unique = Array.from(new Set(merged));
+            if (unique.length !== prev.length) {
+              onDataChange({ audioGallery: unique });
+            }
+            return unique;
+          });
+          
+          // Initialiser les audios sélectionnés
+          setSelectedAudiosForEditor(prev => {
+            const merged = [...prev, ...audioUrls];
+            return Array.from(new Set(merged));
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user files from storage:', error);
+    }
+  }, [onDataChange]);
 
   // Ref pour stocker la fonction de sauvegarde
   const saveCanvasStateRef = useRef<() => void>();
@@ -143,7 +247,8 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
     saveCanvasStateRef.current = saveCanvasState;
   }, [saveCanvasState]);
 
-  // Synchroniser avec les données parentes
+  // Synchroniser avec les données parentes (depuis la base de données)
+  // Puis charger aussi les fichiers depuis le storage pour avoir tous les fichiers uploadés
   useEffect(() => {
     if (data?.mainPhotoGallery) {
       setUploadedPhotos(data.mainPhotoGallery);
@@ -153,8 +258,20 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
     }
     if (data?.audioGallery) {
       setUploadedAudios(data.audioGallery);
+      // Initialiser les audios sélectionnés avec tous les audios disponibles
+      setSelectedAudiosForEditor(data.audioGallery);
     }
-  }, [data?.mainPhotoGallery, data?.videoGallery, data?.audioGallery]);
+    
+    // Si l'utilisateur est connecté, charger aussi les fichiers depuis le storage
+    // pour avoir tous les fichiers uploadés, même ceux non sauvegardés dans la base
+    if (user?.id) {
+      // Attendre un peu pour que les données de la base soient chargées d'abord
+      const timer = setTimeout(() => {
+        loadUserFilesFromStorage(user.id);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [data?.mainPhotoGallery, data?.videoGallery, data?.audioGallery, user?.id, loadUserFilesFromStorage]);
 
   // Fonction pour créer/mettre à jour un rectangle de bordure autour d'un élément
   const updateBorderRect = useCallback((obj: FabricObject, borderColor: string, borderWidth: number, borderStyle: 'solid' | 'dashed' = 'solid') => {
@@ -599,7 +716,22 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
   // Upload d'images, vidéos et audios
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    if (files.length === 0 || !user?.id) return;
+    if (files.length === 0) return;
+    
+    // Vérifier que l'utilisateur est authentifié
+    const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser();
+    if (authError || !currentUser) {
+      toast({
+        title: "Authentifizierung erforderlich",
+        description: "Bitte melden Sie sich an, um Dateien hochzuladen.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Utiliser l'utilisateur actuel
+    const uploadUser = currentUser;
+    if (!uploadUser?.id) return;
 
     // Séparer les fichiers par type
     const imageFiles: File[] = [];
@@ -694,7 +826,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
       // Upload des images
       const imagePromises = imageFiles.map(async (file) => {
         const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/gallery/${Date.now()}-${Math.random()}.${fileExt}`;
+        const fileName = `${uploadUser.id}/gallery/${Date.now()}-${Math.random()}.${fileExt}`;
 
         const { data: uploadData, error } = await supabase.storage
           .from('dde_memorial_photos')
@@ -712,7 +844,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
       // Upload des vidéos
       const videoPromises = videoFiles.map(async (file) => {
         const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/videos/${Date.now()}-${Math.random()}.${fileExt}`;
+        const fileName = `${uploadUser.id}/videos/${Date.now()}-${Math.random()}.${fileExt}`;
 
         const { data: uploadData, error } = await supabase.storage
           .from('dde_memorial_media')
@@ -730,7 +862,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
       // Upload des audios
       const audioPromises = audioFiles.map(async (file) => {
         const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/audios/${Date.now()}-${Math.random()}.${fileExt}`;
+        const fileName = `${uploadUser.id}/audios/${Date.now()}-${Math.random()}.${fileExt}`;
 
         const { data: uploadData, error } = await supabase.storage
           .from('dde_memorial_media')
@@ -751,6 +883,9 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
         Promise.all(audioPromises),
       ]);
 
+      // Mettre à jour les états locaux avec les nouveaux fichiers uploadés
+      // Les fichiers sont déjà persistés dans Supabase Storage
+      // L'utilisateur peut choisir quand sauvegarder l'éditeur
       if (newImageUrls.length > 0) {
         const updatedPhotos = [...uploadedPhotos, ...newImageUrls];
         setUploadedPhotos(updatedPhotos);
@@ -785,7 +920,7 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
       setIsUploading(false);
       event.target.value = '';
     }
-  }, [user, uploadedPhotos, uploadedVideos, uploadedAudios, onDataChange]);
+  }, [uploadedPhotos, uploadedVideos, uploadedAudios, onDataChange]);
 
   // Ajouter une image au canvas depuis la galerie (comme addText)
   const addImageToCanvas = useCallback((imageUrl: string) => {
@@ -1766,63 +1901,110 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
 
                         {/* Gallery des audios uploadés */}
                         {uploadedAudios.length > 0 ? (
-                          <div className="space-y-3 mt-4">
+                          <div className="space-y-2 mt-4">
                             {uploadedAudios.map((audio: string | any, index: number) => {
                               const src = typeof audio === 'string' ? audio : audio.src || audio;
                               const fileName = typeof audio === 'string' 
                                 ? audio.split('/').pop()?.split('?')[0] || `Audio ${index + 1}`
                                 : audio.name || `Audio ${index + 1}`;
+                              
+                              // Extraire le nom du fichier sans extension pour le titre
+                              const title = fileName.replace(/\.[^/.]+$/, '');
+                              
                               return (
                                 <div
                                   key={`audio-${index}`}
-                                  className="flex flex-col gap-2 p-3 bg-white border-2 border-gray-300 hover:border-purple-500 rounded-lg transition-colors"
+                                  className="group relative bg-white border border-gray-200 hover:border-purple-500 rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                   }}
                                 >
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                      <Music className="w-5 h-5 text-purple-600" />
+                                  <div className="flex items-center gap-3 p-3">
+                                    {/* Miniature circulaire avec bouton play */}
+                                    <div className="relative w-14 h-14 flex-shrink-0">
+                                      <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center shadow-md">
+                                        <Music className="w-7 h-7 text-white" />
+                                      </div>
+                                      {/* Bouton play overlay */}
+                                      <button
+                                        type="button"
+                                        className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const audioElement = document.querySelector(`#audio-player-${index}`) as HTMLAudioElement;
+                                          if (audioElement) {
+                                            if (audioElement.paused) {
+                                              audioElement.play();
+                                            } else {
+                                              audioElement.pause();
+                                            }
+                                          }
+                                        }}
+                                      >
+                                        <Play className="w-5 h-5 text-white ml-0.5" />
+                                      </button>
                                     </div>
+
+                                    {/* Informations de la piste */}
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-medium text-gray-700 truncate">
-                                        {fileName}
+                                      <p className="text-sm font-semibold text-gray-900 truncate mb-0.5">
+                                        {title}
                                       </p>
+                                      <p className="text-xs text-gray-500 truncate mb-1">
+                                        Audio-Datei
+                                      </p>
+                                      {/* Player audio compact */}
+                                      <audio
+                                        id={`audio-player-${index}`}
+                                        className="w-full h-6"
+                                        src={src}
+                                        preload="metadata"
+                                        onError={(e) => {
+                                          console.error('Error loading audio:', src, e);
+                                        }}
+                                        onLoadedMetadata={(e) => {
+                                          const audioEl = e.target as HTMLAudioElement;
+                                          const duration = audioEl.duration;
+                                          const minutes = Math.floor(duration / 60);
+                                          const seconds = Math.floor(duration % 60);
+                                          const durationText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                                          const durationEl = document.querySelector(`#audio-duration-${index}`);
+                                          if (durationEl) {
+                                            durationEl.textContent = durationText;
+                                          }
+                                        }}
+                                      >
+                                        Ihr Browser unterstützt das Audio-Element nicht.
+                                      </audio>
                                     </div>
-                                    <div className="bg-purple-600 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 flex-shrink-0">
-                                      <Music className="w-2.5 h-2.5" />
-                                      <span>Audio</span>
+
+                                    {/* Bouton d'action - Add */}
+                                    <div className="flex flex-col gap-1 flex-shrink-0">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0 text-gray-400 hover:text-purple-600 hover:bg-purple-50"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          addAudioToCanvas(src);
+                                          toast({
+                                            title: "Audio hinzugefügt",
+                                            description: "Das Audio wurde zum Canvas hinzugefügt.",
+                                          });
+                                        }}
+                                        title="Zum Canvas hinzufügen"
+                                      >
+                                        <Plus className="w-4 h-4" />
+                                      </Button>
+                                      <span 
+                                        id={`audio-duration-${index}`}
+                                        className="text-xs text-gray-400 text-center"
+                                      >
+                                        --
+                                      </span>
                                     </div>
                                   </div>
-                                  <audio 
-                                    controls 
-                                    className="w-full h-10"
-                                    src={src}
-                                    preload="metadata"
-                                    onError={(e) => {
-                                      console.error('Error loading audio:', src, e);
-                                    }}
-                                  >
-                                    Ihr Browser unterstützt das Audio-Element nicht.
-                                  </audio>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full mt-2 text-xs bg-purple-50 hover:bg-purple-100 border-purple-300 text-purple-700"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      console.log('Button clicked, adding audio to canvas:', src);
-                                      addAudioToCanvas(src);
-                                      toast({
-                                        title: "Audio hinzugefügt",
-                                        description: "Das Audio wurde zum Canvas hinzugefügt.",
-                                      });
-                                    }}
-                                  >
-                                    <Plus className="w-3 h-3 mr-1" />
-                                    Zum Canvas hinzufügen
-                                  </Button>
                                 </div>
                               );
                             })}
@@ -2068,10 +2250,133 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
             </>
           )}
           {!selectedObject && (
-            <div className="text-sm text-gray-400 px-4 flex items-center gap-2">
-              <Circle className="w-4 h-4 opacity-50" />
-              <span>Wählen Sie ein Element aus, um es zu bearbeiten</span>
-            </div>
+            <>
+              {/* Sélecteur d'audios pour l'éditeur */}
+              {uploadedAudios.length > 0 && (
+                <Popover open={showAudioSelector} onOpenChange={setShowAudioSelector}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                      title="Audios für Editor auswählen"
+                    >
+                      <Music className="w-5 h-5 mr-2" />
+                      <span className="text-sm">
+                        Audios ({selectedAudiosForEditor.length}/{uploadedAudios.length})
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-96 p-4 bg-[#2d2d2d] border-gray-600" align="start">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-semibold text-white">Audios für Editor auswählen</h3>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (selectedAudiosForEditor.length === uploadedAudios.length) {
+                              setSelectedAudiosForEditor([]);
+                            } else {
+                              setSelectedAudiosForEditor([...uploadedAudios]);
+                            }
+                          }}
+                          className="text-xs text-gray-300 hover:text-white h-6"
+                        >
+                          {selectedAudiosForEditor.length === uploadedAudios.length ? 'Alle abwählen' : 'Alle auswählen'}
+                        </Button>
+                      </div>
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {uploadedAudios.map((audio: string | any, index: number) => {
+                          const src = typeof audio === 'string' ? audio : audio.src || audio;
+                          const fileName = typeof audio === 'string' 
+                            ? audio.split('/').pop()?.split('?')[0] || `Audio ${index + 1}`
+                            : audio.name || `Audio ${index + 1}`;
+                          const title = fileName.replace(/\.[^/.]+$/, '');
+                          const isSelected = selectedAudiosForEditor.includes(src);
+                          
+                          return (
+                            <div
+                              key={`audio-selector-${index}`}
+                              className={cn(
+                                "flex items-center gap-3 p-2 rounded-lg border transition-all cursor-pointer",
+                                isSelected
+                                  ? "bg-purple-600/20 border-purple-500"
+                                  : "bg-gray-800 border-gray-700 hover:border-gray-600"
+                              )}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedAudiosForEditor(selectedAudiosForEditor.filter(a => a !== src));
+                                } else {
+                                  setSelectedAudiosForEditor([...selectedAudiosForEditor, src]);
+                                }
+                              }}
+                            >
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center flex-shrink-0">
+                                <Music className="w-5 h-5 text-white" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-white truncate">{title}</p>
+                                <p className="text-xs text-gray-400 truncate">Audio-Datei</p>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {isSelected && (
+                                  <div className="w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center">
+                                    <span className="text-white text-xs">✓</span>
+                                  </div>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-gray-400 hover:text-purple-400 hover:bg-purple-600/20"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    addAudioToCanvas(src);
+                                    toast({
+                                      title: "Audio hinzugefügt",
+                                      description: "Das Audio wurde zum Canvas hinzugefügt.",
+                                    });
+                                  }}
+                                  title="Zum Canvas hinzufügen"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {selectedAudiosForEditor.length > 0 && (
+                        <div className="pt-3 border-t border-gray-700">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                            onClick={() => {
+                              selectedAudiosForEditor.forEach(audioUrl => {
+                                addAudioToCanvas(audioUrl);
+                              });
+                              toast({
+                                title: "Audios hinzugefügt",
+                                description: `${selectedAudiosForEditor.length} Audio(s) wurden zum Canvas hinzugefügt.`,
+                              });
+                              setShowAudioSelector(false);
+                            }}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            {selectedAudiosForEditor.length} Audio(s) zum Canvas hinzufügen
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+              <div className="text-sm text-gray-400 px-4 flex items-center gap-2">
+                <Circle className="w-4 h-4 opacity-50" />
+                <span>Wählen Sie ein Element aus, um es zu bearbeiten</span>
+              </div>
+            </>
           )}
         </div>
 
@@ -2182,6 +2487,8 @@ export const SimpleCanvaEditor: React.FC<SimpleCanvaEditorProps> = ({
                         const updatedAudios = uploadedAudios.filter((_, i) => i !== index);
                         setUploadedAudios(updatedAudios);
                         onDataChange({ audioGallery: updatedAudios });
+                        // Note: La suppression de l'URL de la liste ne supprime pas le fichier du storage
+                        // L'utilisateur peut choisir quand sauvegarder l'éditeur
                       }}
                       className="text-gray-400 hover:text-red-400 hover:bg-red-900/20 flex-shrink-0"
                       title="Audio entfernen"
